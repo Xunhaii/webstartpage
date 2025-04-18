@@ -54,7 +54,7 @@ body {
   animation: fadeOut 0.6s ease-out forwards;
 }
 .title::before {
-  content: "🐱";
+  content: "❄️";
   margin-right: 10px;
 }
 /* 淡入动画 */
