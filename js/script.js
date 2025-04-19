@@ -39,7 +39,7 @@ const engineIcons = {
 function updateBackground() {
   const hour = new Date().getHours();
   const isMorning = hour >= 6 && hour < 18;
-  body.style.background = isMorning ? 'url("bgxzs.webp") no-repeat center/cover fixed' : 'url("img/bgxws.webp") no-repeat center/cover fixed';
+  body.style.background = isMorning ? 'url("img/bgxzs.webp") no-repeat center/cover fixed' : 'url("img/bgxws.webp") no-repeat center/cover fixed';
   backgroundOverlay.style.background = isMorning ? 'url("img/bgxws.webp") no-repeat center/cover' : 'url("img/bgxzs.webp") no-repeat center/cover';
 }
 
