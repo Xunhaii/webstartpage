@@ -1,8 +1,10 @@
 // 默认搜索引擎和快捷方式
 const DEFAULT_SHORTCUTS = [
   { name: 'Xunhaii', url: 'https://xunhaii.com', icon: 'fa-link' },
-  { name: 'GitHub', url: 'https://github.com', icon: 'fa-github' },
-  { name: 'Bilibili', url: 'https://www.bilibili.com', icon: 'fa-television' },
+  { name: 'GitHub', url: 'https://github.com', icon: 'fa-brands fa-github' },
+  { name: 'Bilibili', url: 'https://www.bilibili.com', icon: 'fa-brands fa-bilibili' },
+  { name: '抖音', url: 'https://www.douyin.com', icon: 'fa-brands fa-tiktok' },
+  { name: '知乎', url: 'https://www.zhihu.com', icon: 'fa-brands fa-zhihu' },
   { name: '网易企业邮', url: 'https://mail.xunhaii.com', icon: 'fa-envelope' },
 ];
 
