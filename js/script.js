@@ -40,6 +40,9 @@ const settingsBtn = document.getElementById('settings-btn');
 const settingsModal = document.getElementById('settings-modal');
 const closeSettingsBtn = document.getElementById('close-settings-btn');
 const resetSettingsBtn = document.getElementById('reset-settings-btn');
+const autoThemeToggle = document.getElementById('auto-theme-toggle');
+const bgStyleBtns = document.querySelectorAll('.bg-style-btn');
+const layoutBtns = document.querySelectorAll('.layout-btn');
 
 // 当前活动的搜索引擎
 let currentEngine = 'bing';
@@ -54,6 +57,19 @@ function init() {
   
   // 加载快捷方式
   loadShortcuts();
+  
+  // 加载背景样式设置
+  loadBgStyle();
+  
+  // 加载快捷方式布局设置
+  loadShortcutLayout();
+
+  // 检查自动切换主题的状态
+  const savedAutoTheme = localStorage.getItem('autoTheme');
+  if (savedAutoTheme === 'true') {
+    autoThemeToggle.checked = true;
+    handleAutoThemeToggle();
+  }
   
   // 添加事件监听器
   setupEventListeners();
@@ -98,6 +114,27 @@ function setupEventListeners() {
   
   // 窗口滚动事件
   window.addEventListener('scroll', handleScroll);
+
+  // 自动切换主题
+  autoThemeToggle.addEventListener('change', handleAutoThemeToggle);
+
+  // 背景样式切换
+  bgStyleBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const style = btn.dataset.style;
+      updateBgStyle(style);
+      saveBgStyle(style);
+    });
+  });
+  
+  // 快捷方式布局切换
+  layoutBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const layout = btn.dataset.layout;
+      updateShortcutLayout(layout);
+      saveShortcutLayout(layout);
+    });
+  });
 }
 
 // 处理搜索
@@ -251,6 +288,8 @@ function closeModal(modal) {
 function toggleTheme() {
   const isDark = document.documentElement.classList.toggle('dark');
   localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  localStorage.removeItem('autoTheme');
+  autoThemeToggle.checked = false;
 }
 
 // 加载主题设置
@@ -291,11 +330,105 @@ function resetSettings() {
     localStorage.setItem('shortcuts', JSON.stringify(DEFAULT_SHORTCUTS));
     renderShortcuts(DEFAULT_SHORTCUTS);
     
+    // 重置自动切换主题
+    autoThemeToggle.checked = false;
+    localStorage.removeItem('autoTheme');
+    
+    // 重置背景样式
+    updateBgStyle('gradient');
+    localStorage.removeItem('bgStyle');
+    
+    // 重置快捷方式布局
+    updateShortcutLayout('grid');
+    localStorage.removeItem('shortcutLayout');
+    
     // 关闭设置模态框
     closeModal(settingsModal);
   }
 }
 
+// 处理自动切换主题
+function handleAutoThemeToggle() {
+  const isChecked = autoThemeToggle.checked;
+  if (isChecked) {
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (prefersDark) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      if (e.matches) {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
+      }
+    });
+    localStorage.setItem('autoTheme', 'true');
+  } else {
+    localStorage.removeItem('autoTheme');
+  }
+}
+
+// 更新背景样式
+function updateBgStyle(style) {
+  const body = document.body;
+  if (style === 'gradient') {
+    body.classList.add('bg-gradient-to-br', 'from-blue-50', 'to-indigo-50');
+    body.classList.remove('bg-solid', 'bg-image');
+  } else if (style === 'solid') {
+    body.classList.add('bg-solid');
+    body.classList.remove('bg-gradient-to-br', 'from-blue-50', 'to-indigo-50', 'bg-image');
+  } else if (style === 'image') {
+    body.classList.add('bg-image');
+    body.classList.remove('bg-gradient-to-br', 'from-blue-50', 'to-indigo-50', 'bg-solid');
+  }
+}
+
+// 保存背景样式设置
+function saveBgStyle(style) {
+  localStorage.setItem('bgStyle', style);
+}
+
+// 加载背景样式设置
+function loadBgStyle() {
+  const savedStyle = localStorage.getItem('bgStyle');
+  if (savedStyle) {
+    updateBgStyle(savedStyle);
+  }
+}
+
+// 更新快捷方式布局
+function updateShortcutLayout(layout) {
+  const shortcutsGrid = document.getElementById('shortcuts-grid');
+  if (layout === 'grid') {
+    shortcutsGrid.classList.add('grid');
+    shortcutsGrid.classList.remove('list', 'card');
+  } else if (layout === 'list') {
+    shortcutsGrid.classList.add('list');
+    shortcutsGrid.classList.remove('grid', 'card');
+  } else if (layout === 'card') {
+    shortcutsGrid.classList.add('card');
+    shortcutsGrid.classList.remove('grid', 'list');
+  }
+}
+
+// 保存快捷方式布局设置
+function saveShortcutLayout(layout) {
+  localStorage.setItem('shortcutLayout', layout);
+}
+
+// 加载快捷方式布局设置
+function loadShortcutLayout() {
+  const savedLayout = localStorage.getItem('shortcutLayout');
+  if (savedLayout) {
+    updateShortcutLayout(savedLayout);
+  }
+}
+
 // 初始化应用
 document.addEventListener('DOMContentLoaded', init);
-    
