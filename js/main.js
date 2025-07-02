@@ -516,8 +516,11 @@ function initTheme() {
                 document.body.classList.remove('dark-mode');
                 document.getElementById('theme-toggle').innerHTML = '<i class="fas fa-moon"></i>';
             }
+            setThemeColor();
         }
     });
+    // 设置主题色
+    setThemeColor();
 }
 
 // 切换主题
@@ -540,6 +543,8 @@ function toggleTheme() {
         document.getElementById('theme-toggle').innerHTML = '<i class="fas fa-sun"></i>';
         localStorage.setItem('theme', 'dark');
     }
+    // 更新主题色
+    setThemeColor();
 }
 
 // 切换是否跟随系统主题
@@ -1175,6 +1180,16 @@ function deleteEngine() {
             closeEngineModal();
         }
     }
+}
+
+// 设置主题色
+function setThemeColor() {
+  const themeColor = document.getElementById('theme-color');
+  if (document.body.classList.contains('dark-mode')) {
+    themeColor.content = '#1a1a2e'; // 夜间模式主题色
+  } else {
+    themeColor.content = '#f5f7fa'; // 日间模式主题色
+  }
 }
 
 // 全局变量
