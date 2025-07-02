@@ -1,193 +1,240 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Xunhaii起始页</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="/css/styles.css">
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            primary: '#3B82F6',
-            secondary: '#6366F1',
-            accent: '#8B5CF6',
-            neutral: '#1F2937',
-            'neutral-light': '#F3F4F6',
-          },
-          fontFamily: {
-            inter: ['Inter', 'system-ui', 'sans-serif'],
-          },
-        },
-      }
-    }
-  </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xunhaii起始页</title>
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/main.css">
 </head>
-<body class="font-inter bg-gradient-to-br from-blue-50 to-indigo-50 min-h-screen dark:from-neutral-900 dark:to-neutral-800 transition-colors duration-300">
-  <!-- 顶部导航栏 -->
-  <header class="fixed top-0 left-0 right-0 z-50 transition-all duration-300">
-    <div class="glass dark:glass-dark px-4 py-3 flex items-center justify-between shadow-sm">
-      <div class="flex items-center space-x-4">
-        <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-          <i class="fa-regular fa-moon dark:hidden text-neutral"></i>
-          <i class="fa-regular fa-sun hidden dark:inline text-yellow-300"></i>
-        </button>
-        <h1 class="text-xl font-bold text-primary dark:text-white text-shadow">Xunhaii起始页</h1>
-      </div>
-      <button id="settings-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-        <i class="fa-solid fa-cog text-neutral dark:text-white"></i>
-      </button>
-    </div>
-  </header>
-
-  <!-- 主内容区 -->
-  <main class="container mx-auto px-4 pt-24 pb-16">
-    <!-- 搜索区域 -->
-    <section class="max-w-3xl mx-auto mb-12">
-      <div class="flex flex-col items-center">
-        <div class="mb-6 text-center">
-          <h2 class="text-[clamp(2rem,5vw,3rem)] font-bold text-neutral dark:text-white mb-2 text-shadow">Search</h2>
-          <p class="text-gray-600 dark:text-gray-300">一站式访问你喜爱的搜索引擎</p>
-        </div>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <i class="fas fa-compass"></i>
+                <span>Xunhaii起始页</span>
+            </div>
+            <div class="header-controls">
+                <button class="theme-btn" id="theme-toggle">
+                    <i class="fas fa-moon"></i>
+                </button>
+                <button class="settings-btn" id="settings-toggle">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </header>
         
-        <!-- 搜索引擎选择器 -->
-        <div class="flex bg-white dark:bg-neutral-800 rounded-full p-1 shadow-sm mb-6 max-w-xs mx-auto">
-          <button class="search-engine-btn flex-1 py-2 px-4 rounded-full text-sm font-medium transition-all" data-engine="bing">
-            <span class="inline-flex items-center">
-              <i class="fa-solid fa-search mr-2"></i> Bing
-            </span>
-          </button>
-          <button class="search-engine-btn flex-1 py-2 px-4 rounded-full text-sm font-medium transition-all" data-engine="baidu">
-            <span class="inline-flex items-center">
-              <i class="fa-solid fa-search mr-2"></i> 百度
-            </span>
-          </button>
-          <button class="search-engine-btn flex-1 py-2 px-4 rounded-full text-sm font-medium transition-all" data-engine="google">
-            <span class="inline-flex items-center">
-              <i class="fa-solid fa-search mr-2"></i> Google
-            </span>
-          </button>
-        </div>
-        
-        <!-- 搜索框 -->
-        <div class="relative w-full max-w-2xl">
-          <form id="search-form" class="relative">
-            <input 
-              type="text" 
-              id="search-input" 
-              placeholder="搜索..." 
-              class="w-full py-4 px-6 pr-14 rounded-2xl shadow-md focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white dark:bg-neutral-800 text-neutral dark:text-white transition-all"
-            >
-            <button type="submit" class="absolute right-4 top-1/2 transform -translate-y-1/2 text-primary dark:text-primary p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors">
-              <i class="fa-solid fa-search text-lg"></i>
+        <!-- 设置面板 -->
+        <div class="settings-panel" id="settings-panel">
+            <div class="settings-item">
+                <span class="settings-label">跟随系统主题</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="system-theme-toggle" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <button class="reset-btn" id="reset-settings">
+                <i class="fas fa-redo"></i>
+                <span>重置所有设置</span>
             </button>
-          </form>
         </div>
-      </div>
-    </section>
-    
-    <!-- 快捷方式区域 -->
-    <section class="max-w-4xl mx-auto">
-      <div class="flex items-center justify-between mb-6">
-        <h2 class="text-xl font-bold text-neutral dark:text-white text-shadow">快捷方式</h2>
-        <button id="add-shortcut-btn" class="text-primary dark:text-primary hover:text-primary/80 transition-colors flex items-center">
-          <i class="fa-solid fa-plus-circle mr-2"></i> 添加
-        </button>
-      </div>
-      
-      <!-- 快捷方式网格 -->
-      <div id="shortcuts-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-        <!-- 示例快捷方式，将由JavaScript动态生成 -->
-      </div>
-    </section>
-  </main>
 
-  <!-- 页脚 -->
-  <footer class="fixed bottom-0 left-0 right-0">
-    <div class="glass dark:glass-dark px-4 py-2 text-center text-sm text-gray-600 dark:text-gray-400">
-      <p>© 2025 Xunhaii. | All rights reserved.</p>
+        <div class="main-content">
+            <div class="time-container">
+                <div class="time" id="current-time">00:00</div>
+                <div class="date" id="current-date">2023年1月1日 星期一</div>
+            </div>
+
+            <div class="search-container">
+                <div class="search-engine-controls">
+                    <div class="search-engine-selector" id="engine-container">
+                        <!-- 搜索引擎按钮将通过JS动态添加 -->
+                    </div>
+                    <button class="add-engine-btn" id="add-engine-btn">
+                        <i class="fas fa-plus"></i>
+                        <span>添加引擎</span>
+                    </button>
+                </div>
+                <div class="search-box">
+                    <input type="text" id="search-input" placeholder="搜索互联网...">
+                    <button id="search-btn">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="links-section">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <i class="fas fa-bookmark"></i>
+                        <span>快捷方式</span>
+                    </h2>
+                    <button class="add-btn" id="add-link-btn">
+                        <i class="fas fa-plus"></i>
+                        <span>添加快捷方式</span>
+                    </button>
+                </div>
+                <div class="links-grid" id="links-container">
+                    <!-- 链接将通过JS动态添加 -->
+                </div>
+            </div>
+
+            <div class="history-section">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <i class="fas fa-history"></i>
+                        <span>历史搜索</span>
+                    </h2>
+                </div>
+                <div class="history-container">
+                    <div class="history-header">
+                        <h3>最近搜索记录</h3>
+                        <button class="clear-history" id="clear-history">
+                            <i class="fas fa-trash"></i>
+                            <span>清空历史</span>
+                        </button>
+                    </div>
+                    <div class="history-grid" id="history-container">
+                        <!-- 历史记录将通过JS动态添加 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 版权信息 -->
+        <div class="footer">
+            © 2025 Xunhaii. | All rights reserved.
+        </div>
     </div>
-  </footer>
 
-  <!-- 添加快捷方式模态框 -->
-  <div id="add-shortcut-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden">
-    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
-    <div class="relative bg-white dark:bg-neutral-800 rounded-xl shadow-xl p-6 w-full max-w-md mx-4 transform transition-all">
-      <div class="flex justify-between items-center mb-4">
-        <h3 class="text-xl font-bold text-neutral dark:text-white">添加快捷方式</h3>
-        <button id="close-modal-btn" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-          <i class="fa-solid fa-times"></i>
-        </button>
-      </div>
-      <form id="shortcut-form">
-        <div class="mb-4">
-          <label for="shortcut-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">名称</label>
-          <input type="text" id="shortcut-name" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white dark:bg-neutral-700 text-neutral dark:text-white" placeholder="例如: Xunhaii">
+    <!-- 添加快捷方式模态框 -->
+    <div class="modal" id="link-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="link-modal-title">添加快捷方式</h3>
+                <button class="close-btn" id="close-link-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="link-name">名称</label>
+                    <input type="text" id="link-name" class="form-control" placeholder="例如：Xunhaii">
+                </div>
+                <div class="form-group">
+                    <label for="link-url">网址</label>
+                    <input type="text" id="link-url" class="form-control" placeholder="例如：https://xunhaii.com">
+                </div>
+                <div class="form-group">
+                    <label>图标设置</label>
+                    <div class="icon-options">
+                        <div class="icon-option" data-type="fa" id="link-fa-option">
+                            <i class="fas fa-icons"></i>
+                            <div>Font Awesome</div>
+                        </div>
+                        <div class="icon-option" data-type="url" id="link-url-option">
+                            <i class="fas fa-link"></i>
+                            <div>图片链接</div>
+                        </div>
+                        <div class="icon-option" data-type="upload" id="link-upload-option">
+                            <i class="fas fa-upload"></i>
+                            <div>上传图片</div>
+                        </div>
+                    </div>
+                    
+                    <div class="icon-preview" id="link-icon-preview">
+                        <i class="fas fa-link"></i>
+                    </div>
+                    
+                    <div id="link-fa-container" class="icon-selector">
+                        <input type="text" id="link-fa-icon" class="form-control" placeholder="输入Font Awesome图标类名 (如: fab fa-x)">
+                    </div>
+                    
+                    <div id="link-url-container" class="icon-selector" style="display:none">
+                        <input type="text" id="link-icon-url" class="form-control" placeholder="输入图标图片URL">
+                    </div>
+                    
+                    <div id="link-upload-container" class="icon-selector" style="display:none">
+                        <div class="custom-upload">
+                            <div class="custom-upload-button">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <span>选择图标文件</span>
+                            </div>
+                            <input type="file" id="link-icon-upload" accept="image/*">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" id="cancel-link-btn">取消</button>
+                <button class="btn btn-primary" id="save-link-btn">保存</button>
+            </div>
         </div>
-        <div class="mb-4">
-          <label for="shortcut-url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">网址</label>
-          <input type="url" id="shortcut-url" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white dark:bg-neutral-700 text-neutral dark:text-white" placeholder="例如: https://xunhaii.com">
-        </div>
-        <div class="mb-4">
-          <label for="shortcut-icon" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">图标类名 (Font Awesome)</label>
-          <input type="text" id="shortcut-icon" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white dark:bg-neutral-700 text-neutral dark:text-white" placeholder="例如: fa-link">
-        </div>
-        <div class="flex justify-end space-x-3">
-          <button type="button" id="cancel-shortcut-btn" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">取消</button>
-          <button type="submit" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">保存</button>
-        </div>
-      </form>
     </div>
-  </div>
 
-  <!-- 设置模态框 -->
-  <div id="settings-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden">
-    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
-    <div class="relative bg-white dark:bg-neutral-800 rounded-xl shadow-xl p-6 w-full max-w-md mx-4 transform transition-all">
-      <div class="flex justify-between items-center mb-4">
-        <h3 class="text-xl font-bold text-neutral dark:text-white">设置</h3>
-        <button id="close-settings-btn" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-          <i class="fa-solid fa-times"></i>
-        </button>
-      </div>
-      <div class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">背景样式</label>
-          <div class="grid grid-cols-3 gap-2">
-            <button class="bg-style-btn py-2 px-3 border border-primary rounded-lg bg-primary text-white text-sm" data-style="gradient">渐变</button>
-            <button class="bg-style-btn py-2 px-3 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 text-sm hover:bg-gray-100 dark:hover:bg-gray-700" data-style="solid">纯色</button>
-            <button class="bg-style-btn py-2 px-3 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 text-sm hover:bg-gray-100 dark:hover:bg-gray-700" data-style="image">图片</button>
-          </div>
+    <!-- 添加/编辑搜索引擎模态框 -->
+    <div class="modal" id="engine-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="engine-modal-title">添加搜索引擎</h3>
+                <button class="close-btn" id="close-engine-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="engine-name">名称</label>
+                    <input type="text" id="engine-name" class="form-control" placeholder="例如：DuckDuckGo">
+                </div>
+                <div class="form-group">
+                    <label for="engine-url">搜索URL</label>
+                    <input type="text" id="engine-url" class="form-control" placeholder="例如：https://duckduckgo.com/?q={query}">
+                    <small class="hint">使用{query}作为搜索查询占位符</small>
+                </div>
+                <div class="form-group">
+                    <label>图标设置</label>
+                    <div class="icon-options">
+                        <div class="icon-option" data-type="fa" id="engine-fa-option">
+                            <i class="fas fa-icons"></i>
+                            <div>Font Awesome</div>
+                        </div>
+                        <div class="icon-option" data-type="url" id="engine-url-option">
+                            <i class="fas fa-link"></i>
+                            <div>图片链接</div>
+                        </div>
+                        <div class="icon-option" data-type="upload" id="engine-upload-option">
+                            <i class="fas fa-upload"></i>
+                            <div>上传图片</div>
+                        </div>
+                    </div>
+                    
+                    <div class="icon-preview" id="engine-icon-preview">
+                        <i class="fas fa-search"></i>
+                    </div>
+                    
+                    <div id="engine-fa-container" class="icon-selector">
+                        <input type="text" id="engine-fa-icon" class="form-control" placeholder="输入Font Awesome图标类名 (如: fas fa-search)">
+                    </div>
+                    
+                    <div id="engine-url-container" class="icon-selector" style="display:none">
+                        <input type="text" id="engine-icon-url" class="form-control" placeholder="输入图标图片URL">
+                    </div>
+                    
+                    <div id="engine-upload-container" class="icon-selector" style="display:none">
+                        <div class="custom-upload">
+                            <div class="custom-upload-button">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <span>选择图标文件</span>
+                            </div>
+                            <input type="file" id="engine-icon-upload" accept="image/*">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" id="delete-engine-btn" style="display:none">删除</button>
+                <button class="btn btn-outline" id="cancel-engine-btn">取消</button>
+                <button class="btn btn-primary" id="save-engine-btn">保存</button>
+            </div>
         </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">快捷方式布局</label>
-          <div class="grid grid-cols-3 gap-2">
-            <button class="layout-btn py-2 px-3 border border-primary rounded-lg bg-primary text-white text-sm" data-layout="grid">网格</button>
-            <button class="layout-btn py-2 px-3 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 text-sm hover:bg-gray-100 dark:hover:bg-gray-700" data-layout="list">列表</button>
-            <button class="layout-btn py-2 px-3 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 text-sm hover:bg-gray-100 dark:hover:bg-gray-700" data-layout="card">卡片</button>
-          </div>
-        </div>
-        <div>
-          <label class="flex items-center justify-between text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            <span>自动切换主题</span>
-            <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" id="auto-theme-toggle" class="sr-only peer">
-              <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/50 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
-            </label>
-          </label>
-        </div>
-      </div>
-      <div class="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-        <button id="reset-settings-btn" class="w-full py-2 text-center text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
-          重置为默认设置
-        </button>
-      </div>
     </div>
-  </div>
 
-  <script src="/js/script.js"></script>
+    <script src="/js/main.js"></script>
 </body>
 </html>
