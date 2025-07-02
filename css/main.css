@@ -84,16 +84,16 @@ header {
     justify-content: center;
     cursor: pointer;
     font-size: 16px;
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     color: #4da6ff;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
 }
 
 .dark-mode .theme-btn,
 .dark-mode .settings-btn {
     background: rgba(255, 255, 255, 0.1);
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
 }
 
 .theme-btn:hover,
@@ -119,12 +119,7 @@ header {
     font-weight: 300;
     letter-spacing: -1px;
     margin-bottom: 6px;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     color: #4da6ff;
-}
-
-.dark-mode .time {
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .date {
@@ -172,9 +167,9 @@ header {
     outline: none;
     display: flex;
     align-items: center;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
     position: relative;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
 }
 
 .dark-mode .engine-btn {
@@ -208,7 +203,7 @@ header {
     cursor: pointer;
     font-size: 9px;
     color: #4da6ff;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     z-index: 2;
     display: none;
 }
@@ -234,9 +229,9 @@ header {
     display: flex;
     align-items: center;
     gap: 4px;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
     white-space: nowrap;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
 }
 
 .add-engine-btn:hover {
@@ -250,18 +245,18 @@ header {
     padding: 8px 16px;
     border: 1px solid rgba(255, 255, 255, 0.2);
     transition: all 0.3s ease;
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
 }
 
 .dark-mode .search-box {
     background: rgba(255, 255, 255, 0.15);
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 .search-box:hover {
-    box-shadow: 0 5px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
 }
 
 .search-box input {
@@ -349,14 +344,16 @@ header {
     display: flex;
     align-items: center;
     gap: 5px;
-    box-shadow: 0 3px 8px rgba(77, 166, 255, 0.3);
+    box-shadow: 0 2px 6px rgba(77, 166, 255, 0.3);
     white-space: nowrap;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
 }
 
 .add-btn:hover {
     background: rgba(77, 166, 255, 1);
     transform: translateY(-2px);
-    box-shadow: 0 5px 12px rgba(77, 166, 255, 0.4);
+    box-shadow: 0 4px 10px rgba(77, 166, 255, 0.4);
 }
 
 .links-grid {
@@ -378,10 +375,10 @@ header {
     border: 1px solid rgba(255, 255, 255, 0.4);
     position: relative;
     min-height: 110px;
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
     cursor: move;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
 }
 
 .link-card.dragging {
@@ -391,12 +388,12 @@ header {
 
 .dark-mode .link-card {
     background: rgba(255, 255, 255, 0.1);
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .link-card:hover {
     transform: translateY(-4px);
-    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 5px 12px rgba(0, 0, 0, 0.15);
 }
 
 .link-icon-container {
@@ -482,16 +479,16 @@ header {
     background: rgba(255, 255, 255, 0.7);
     border-radius: 12px;
     padding: 15px;
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
     max-height: 250px;
     overflow-y: auto;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
 }
 
 .dark-mode .history-container {
     background: rgba(255, 255, 255, 0.1);
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .history-header {
@@ -542,6 +539,12 @@ header {
     transform: translateX(5px);
 }
 
+.history-content {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
 .history-query {
     font-size: 13px;
     overflow: hidden;
@@ -553,6 +556,9 @@ header {
     font-size: 10px;
     opacity: 0.7;
     margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .delete-history {
@@ -562,6 +568,8 @@ header {
     cursor: pointer;
     font-size: 12px;
     padding: 3px;
+    flex-shrink: 0;
+    margin-left: 8px;
 }
 
 .delete-history:hover {
@@ -589,7 +597,7 @@ header {
     max-width: 450px;
     border-radius: 16px;
     padding: 20px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
     max-height: 90vh;
     overflow-y: auto;
 }
@@ -830,17 +838,17 @@ header {
     background: rgba(255, 255, 255, 0.9);
     border-radius: 12px;
     padding: 12px;
-    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 5px 12px rgba(0, 0, 0, 0.15);
     z-index: 100;
     display: none;
     width: 240px;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
 }
 
 .dark-mode .settings-panel {
     background: rgba(30, 41, 59, 0.9);
-    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 5px 12px rgba(0, 0, 0, 0.3);
 }
 
 .settings-panel.open {
@@ -1062,5 +1070,18 @@ header {
 
     .add-btn {
         align-self: flex-end;
+    }
+
+    /* 在移动设备上禁用模糊效果 */
+    .theme-btn,
+    .settings-btn,
+    .engine-btn,
+    .add-engine-btn,
+    .search-box,
+    .link-card,
+    .history-container,
+    .settings-panel {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
     }
 }

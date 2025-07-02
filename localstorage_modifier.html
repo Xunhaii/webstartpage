@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LocalStorage 管理器</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+        }
+        
+        body {
+            background-color: #e6f7ff;
+            color: #333;
+            line-height: 1.6;
+            padding: 15px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+        }
+        
+        header {
+            background-color: #1890ff;
+            color: white;
+            padding: 18px 20px;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 1.6rem;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        
+        .subtitle {
+            font-size: 0.95rem;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            background-color: #e6f7ff;
+            padding: 12px;
+            font-size: 0.9rem;
+            text-align: center;
+            border-bottom: 1px solid #d9eef7;
+        }
+        
+        .stat-item {
+            background: white;
+            padding: 10px;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        .stat-value {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: #1890ff;
+            margin-top: 5px;
+        }
+        
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            padding: 18px;
+            gap: 22px;
+        }
+        
+        .section {
+            background-color: white;
+            border-radius: 8px;
+            padding: 18px;
+            border: 1px solid #e8f4ff;
+        }
+        
+        .section-title {
+            font-size: 1.3rem;
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e8f4ff;
+            color: #1890ff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .section-title i {
+            color: #40a9ff;
+        }
+        
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        
+        button {
+            background: #40a9ff;
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.9rem;
+        }
+        
+        button:hover {
+            background: #1890ff;
+        }
+        
+        .btn-delete {
+            background: #ff4d4f;
+        }
+        
+        .btn-delete:hover {
+            background: #f5222d;
+        }
+        
+        .btn-add {
+            background: #52c41a;
+        }
+        
+        .btn-add:hover {
+            background: #389e0d;
+        }
+        
+        .search-box {
+            flex: 1;
+            min-width: 160px;
+            padding: 8px 12px;
+            border: 1px solid #d9eef7;
+            border-radius: 4px;
+            font-size: 0.95rem;
+            background: #f0fbff;
+        }
+        
+        .items-list {
+            max-height: 380px;
+            overflow-y: auto;
+            border: 1px solid #e8f4ff;
+            border-radius: 6px;
+        }
+        
+        .item-card {
+            padding: 12px;
+            border-bottom: 1px solid #e8f4ff;
+            transition: background 0.2s;
+        }
+        
+        .item-card:last-child {
+            border-bottom: none;
+        }
+        
+        .item-card:hover {
+            background-color: #f5fbff;
+        }
+        
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .item-key {
+            font-weight: 600;
+            color: #096dd9;
+            font-size: 1rem;
+            word-break: break-all;
+        }
+        
+        .item-actions {
+            display: flex;
+            gap: 6px;
+        }
+        
+        .action-btn {
+            padding: 6px 10px;
+            font-size: 0.85rem;
+            border-radius: 3px;
+        }
+        
+        .item-value {
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-word;
+            background-color: #f5fbff;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #e8f4ff;
+            font-size: 0.9rem;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            color: #096dd9;
+            font-size: 0.95rem;
+        }
+        
+        input, textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d9eef7;
+            border-radius: 4px;
+            font-size: 0.95rem;
+            background: #f5fbff;
+        }
+        
+        input:focus, textarea:focus {
+            border-color: #40a9ff;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+        }
+        
+        textarea {
+            min-height: 130px;
+            font-family: monospace;
+            resize: vertical;
+        }
+        
+        .form-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            padding: 12px 20px;
+            border-radius: 6px;
+            color: white;
+            font-weight: 500;
+            opacity: 0;
+            transform: translateX(100px);
+            transition: all 0.3s ease;
+            z-index: 1000;
+            font-size: 0.9rem;
+        }
+        
+        .notification.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        
+        .notification.success {
+            background-color: #52c41a;
+        }
+        
+        .notification.error {
+            background-color: #ff4d4f;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 30px 15px;
+            color: #8c8c8c;
+        }
+        
+        .empty-state i {
+            font-size: 2.5rem;
+            margin-bottom: 12px;
+            color: #bfbfbf;
+        }
+        
+        .empty-state p {
+            margin-top: 8px;
+            font-size: 1rem;
+        }
+        
+        @media (max-width: 768px) {
+            .stats {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+            
+            .item-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+            
+            .item-actions {
+                width: 100%;
+                justify-content: flex-end;
+            }
+            
+            .form-actions {
+                flex-direction: column;
+            }
+            
+            .form-actions button {
+                width: 100%;
+            }
+            
+            .items-list {
+                max-height: 300px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+            
+            header {
+                padding: 14px;
+            }
+            
+            .main-content {
+                padding: 14px;
+            }
+            
+            .section {
+                padding: 14px;
+            }
+            
+            .section-title {
+                font-size: 1.2rem;
+            }
+            
+            button {
+                padding: 7px 12px;
+                font-size: 0.85rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-database"></i> LocalStorage 管理器</h1>
+            <p class="subtitle">简洁高效的管理工具</p>
+        </header>
+        
+        <div class="stats">
+            <div class="stat-item">
+                <div>已用空间</div>
+                <div class="stat-value" id="used-space">0 KB</div>
+            </div>
+            <div class="stat-item">
+                <div>总项数</div>
+                <div class="stat-value" id="total-items">0</div>
+            </div>
+            <div class="stat-item">
+                <div>最大存储</div>
+                <div class="stat-value">5 MB</div>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="section">
+                <h2 class="section-title"><i class="fas fa-list"></i> 存储项列表</h2>
+                
+                <div class="controls">
+                    <button id="refresh-btn">
+                        <i class="fas fa-sync-alt"></i> 刷新列表
+                    </button>
+                    <button id="clear-all-btn" class="btn-delete">
+                        <i class="fas fa-trash-alt"></i> 清空所有
+                    </button>
+                    <input type="text" id="search-input" class="search-box" placeholder="搜索键或值...">
+                </div>
+                
+                <div class="items-list" id="storage-list">
+                    <!-- 动态填充 -->
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2 class="section-title"><i class="fas fa-edit"></i> 添加/编辑存储项</h2>
+                
+                <div class="form-group">
+                    <label for="item-key">键:</label>
+                    <input type="text" id="item-key" placeholder="输入键名">
+                </div>
+                
+                <div class="form-group">
+                    <label for="item-value">值:</label>
+                    <textarea id="item-value" placeholder="输入值（支持JSON格式）"></textarea>
+                </div>
+                
+                <div class="form-actions">
+                    <button id="save-btn" class="btn-add">
+                        <i class="fas fa-save"></i> 保存项
+                    </button>
+                    <button id="clear-form-btn">
+                        <i class="fas fa-times"></i> 清除表单
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="notification" class="notification"></div>
+
+    <script>
+        // DOM元素
+        const storageList = document.getElementById('storage-list');
+        const searchInput = document.getElementById('search-input');
+        const refreshBtn = document.getElementById('refresh-btn');
+        const clearAllBtn = document.getElementById('clear-all-btn');
+        const saveBtn = document.getElementById('save-btn');
+        const clearFormBtn = document.getElementById('clear-form-btn');
+        const itemKeyInput = document.getElementById('item-key');
+        const itemValueInput = document.getElementById('item-value');
+        const usedSpaceEl = document.getElementById('used-space');
+        const totalItemsEl = document.getElementById('total-items');
+        const notificationEl = document.getElementById('notification');
+        
+        // 当前编辑的键
+        let currentEditKey = null;
+        
+        // 显示通知
+        function showNotification(message, isSuccess = true) {
+            notificationEl.textContent = message;
+            notificationEl.className = `notification ${isSuccess ? 'success' : 'error'}`;
+            notificationEl.classList.add('show');
+            
+            setTimeout(() => {
+                notificationEl.classList.remove('show');
+            }, 3000);
+        }
+        
+        // 计算已用存储空间
+        function calculateUsedSpace() {
+            let total = 0;
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                const value = localStorage.getItem(key);
+                total += key.length + value.length;
+            }
+            return total;
+        }
+        
+        // 格式化存储空间
+        function formatStorageSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(2) + ' KB';
+            return (bytes / 1048576).toFixed(2) + ' MB';
+        }
+        
+        // 更新统计信息
+        function updateStats() {
+            const totalBytes = calculateUsedSpace();
+            usedSpaceEl.textContent = formatStorageSize(totalBytes);
+            totalItemsEl.textContent = localStorage.length;
+        }
+        
+        // 尝试解析JSON
+        function tryParseJson(value) {
+            try {
+                return JSON.parse(value);
+            } catch (e) {
+                return value;
+            }
+        }
+        
+        // 渲染存储列表
+        function renderStorageList(filter = '') {
+            storageList.innerHTML = '';
+            
+            if (localStorage.length === 0) {
+                storageList.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-inbox"></i>
+                        <h3>没有存储项</h3>
+                        <p>添加一个新项或刷新页面</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let hasItems = false;
+            
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                let value = localStorage.getItem(key);
+                
+                // 过滤
+                const filterLower = filter.toLowerCase();
+                if (filter && 
+                    !key.toLowerCase().includes(filterLower) && 
+                    !value.toLowerCase().includes(filterLower)) {
+                    continue;
+                }
+                
+                hasItems = true;
+                
+                // 尝试解析JSON
+                const parsedValue = tryParseJson(value);
+                const isJson = typeof parsedValue === 'object';
+                
+                const card = document.createElement('div');
+                card.className = 'item-card';
+                
+                // 键和操作按钮
+                const itemHeader = document.createElement('div');
+                itemHeader.className = 'item-header';
+                
+                const keyEl = document.createElement('div');
+                keyEl.className = 'item-key';
+                keyEl.textContent = key;
+                
+                const actions = document.createElement('div');
+                actions.className = 'item-actions';
+                
+                const editBtn = document.createElement('button');
+                editBtn.textContent = '编辑';
+                editBtn.className = 'action-btn';
+                editBtn.onclick = () => editItem(key);
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = '删除';
+                deleteBtn.className = 'action-btn btn-delete';
+                deleteBtn.onclick = () => deleteItem(key);
+                
+                actions.appendChild(editBtn);
+                actions.appendChild(deleteBtn);
+                
+                itemHeader.appendChild(keyEl);
+                itemHeader.appendChild(actions);
+                
+                // 值显示
+                const valueEl = document.createElement('div');
+                valueEl.className = 'item-value';
+                
+                if (isJson) {
+                    valueEl.textContent = JSON.stringify(parsedValue, null, 2);
+                } else {
+                    valueEl.textContent = value;
+                }
+                
+                // 添加点击编辑功能
+                card.onclick = (e) => {
+                    if (e.target === card || e.target === keyEl || e.target === valueEl) {
+                        editItem(key);
+                    }
+                };
+                
+                card.appendChild(itemHeader);
+                card.appendChild(valueEl);
+                
+                storageList.appendChild(card);
+            }
+            
+            if (!hasItems) {
+                storageList.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-search"></i>
+                        <h3>没有匹配的项</h3>
+                        <p>尝试其他搜索关键词</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // 编辑项目
+        function editItem(key) {
+            currentEditKey = key;
+            itemKeyInput.value = key;
+            const value = localStorage.getItem(key);
+            
+            // 尝试解析JSON
+            const parsedValue = tryParseJson(value);
+            
+            if (typeof parsedValue === 'object') {
+                itemValueInput.value = JSON.stringify(parsedValue, null, 2);
+            } else {
+                itemValueInput.value = value;
+            }
+            
+            // 滚动到表单区域
+            document.querySelector('.section:last-child').scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'start'
+            });
+            
+            showNotification(`正在编辑: ${key}`);
+        }
+        
+        // 删除项目
+        function deleteItem(key) {
+            if (confirm(`确定要删除 "${key}" 吗？`)) {
+                localStorage.removeItem(key);
+                updateStats();
+                renderStorageList(searchInput.value);
+                showNotification(`已删除: ${key}`);
+            }
+        }
+        
+        // 保存项目
+        function saveItem() {
+            const key = itemKeyInput.value.trim();
+            let value = itemValueInput.value.trim();
+            
+            if (!key) {
+                showNotification('键不能为空', false);
+                return;
+            }
+            
+            // 尝试解析JSON
+            try {
+                const parsedValue = JSON.parse(value);
+                value = JSON.stringify(parsedValue);
+            } catch (e) {
+                // 不是JSON，保持原样
+            }
+            
+            // 保存到localStorage
+            localStorage.setItem(key, value);
+            
+            // 更新UI
+            updateStats();
+            renderStorageList(searchInput.value);
+            
+            if (currentEditKey && currentEditKey !== key) {
+                localStorage.removeItem(currentEditKey);
+            }
+            
+            showNotification(`已保存: ${key}`);
+            clearForm();
+        }
+        
+        // 清除表单
+        function clearForm() {
+            itemKeyInput.value = '';
+            itemValueInput.value = '';
+            currentEditKey = null;
+        }
+        
+        // 清空所有
+        function clearAllItems() {
+            if (confirm('确定要清空所有存储项吗？此操作不可撤销！')) {
+                localStorage.clear();
+                updateStats();
+                renderStorageList();
+                clearForm();
+                showNotification('已清空所有存储项');
+            }
+        }
+        
+        // 初始化
+        function init() {
+            // 初始渲染
+            updateStats();
+            renderStorageList();
+            
+            // 事件监听器
+            refreshBtn.addEventListener('click', () => {
+                renderStorageList(searchInput.value);
+                showNotification('列表已刷新');
+            });
+            
+            clearAllBtn.addEventListener('click', clearAllItems);
+            
+            saveBtn.addEventListener('click', saveItem);
+            
+            clearFormBtn.addEventListener('click', clearForm);
+            
+            searchInput.addEventListener('input', () => {
+                renderStorageList(searchInput.value);
+            });
+            
+            // 添加键盘快捷键
+            document.addEventListener('keydown', (e) => {
+                // Ctrl + S 保存
+                if (e.ctrlKey && e.key === 's') {
+                    e.preventDefault();
+                    saveItem();
+                }
+                
+                // Esc 清除表单
+                if (e.key === 'Escape') {
+                    clearForm();
+                }
+            });
+        }
+        
+        // 页面加载完成后初始化
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

@@ -1,3 +1,14 @@
+// 安全函数：转义HTML特殊字符
+function escapeHtml(unsafe) {
+    if (!unsafe) return unsafe;
+    return unsafe.toString()
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 // 页面加载时初始化
 document.addEventListener('DOMContentLoaded', function() {
     // 初始化时间和日期
@@ -406,27 +417,39 @@ function renderSearchHistory(history) {
     history.forEach((item, index) => {
         const historyItem = document.createElement('div');
         historyItem.className = 'history-item';
-        historyItem.innerHTML = `
-                    <div>
-                        <div class="history-query">${item.query}</div>
-                        <div class="history-engine">使用 ${item.engine} 搜索</div>
-                    </div>
-                    <button class="delete-history" data-index="${index}">
-                        <i class="fas fa-times"></i>
-                    </button>
-                `;
+
+        // 安全渲染：使用textContent代替innerHTML
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'history-content';
+
+        const queryDiv = document.createElement('div');
+        queryDiv.className = 'history-query';
+        queryDiv.textContent = item.query; // 安全渲染
+
+        const engineDiv = document.createElement('div');
+        engineDiv.className = 'history-engine';
+        engineDiv.textContent = `使用 ${item.engine} 搜索`; // 安全渲染
+
+        contentDiv.appendChild(queryDiv);
+        contentDiv.appendChild(engineDiv);
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-history';
+        deleteBtn.dataset.index = index;
+        deleteBtn.innerHTML = '<i class="fas fa-times"></i>';
+
+        historyItem.appendChild(contentDiv);
+        historyItem.appendChild(deleteBtn);
 
         // 点击事件 - 重新搜索
         historyItem.addEventListener('click', (e) => {
             if (!e.target.closest('.delete-history')) {
                 document.getElementById('search-input').value = item.query;
-                // 需要找到对应的引擎ID，这里简化处理
                 performSearch();
             }
         });
 
         // 删除按钮
-        const deleteBtn = historyItem.querySelector('.delete-history');
         deleteBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             deleteSearchHistory(index);
@@ -796,7 +819,7 @@ function updateLinkIconPreview() {
     } else if (currentLinkIconType === 'url') {
         const url = document.getElementById('link-icon-url').value;
         if (url) {
-            preview.innerHTML = `<img src="${url}" alt="图标预览">`;
+            preview.innerHTML = `<img src="${escapeHtml(url)}" alt="图标预览">`;
         } else {
             preview.innerHTML = '<i class="fas fa-link"></i>';
         }
@@ -1009,7 +1032,7 @@ function updateEngineIconPreview() {
     } else if (currentEngineIconType === 'url') {
         const url = document.getElementById('engine-icon-url').value;
         if (url) {
-            preview.innerHTML = `<img src="${url}" alt="图标预览">`;
+            preview.innerHTML = `<img src="${escapeHtml(url)}" alt="图标预览">`;
         } else {
             preview.innerHTML = '<i class="fas fa-search"></i>';
         }
