@@ -9,8 +9,115 @@ function escapeHtml(unsafe) {
         .replace(/'/g, "&#039;");
 }
 
+// IndexedDB 数据库初始化
+let db;
+const DB_NAME = "XunhaiiStartPageDB";
+const DB_VERSION = 1;
+const LINK_ICONS_STORE = "linkIcons";
+const ENGINE_ICONS_STORE = "engineIcons";
+
+// 初始化 IndexedDB
+function initIndexedDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+        request.onerror = function(event) {
+            console.error("IndexedDB 错误:", event.target.error);
+            reject(event.target.error);
+        };
+
+        request.onsuccess = function(event) {
+            db = event.target.result;
+            resolve(db);
+        };
+
+        request.onupgradeneeded = function(event) {
+            const db = event.target.result;
+
+            // 创建存储对象仓库
+            if (!db.objectStoreNames.contains(LINK_ICONS_STORE)) {
+                db.createObjectStore(LINK_ICONS_STORE, {
+                    keyPath: 'id'
+                });
+            }
+
+            if (!db.objectStoreNames.contains(ENGINE_ICONS_STORE)) {
+                db.createObjectStore(ENGINE_ICONS_STORE, {
+                    keyPath: 'id'
+                });
+            }
+        };
+    });
+}
+
+// 保存图标到 IndexedDB
+function saveIconToDB(storeName, id, data) {
+    return new Promise((resolve, reject) => {
+        if (!db) {
+            reject("数据库未初始化");
+            return;
+        }
+
+        const transaction = db.transaction([storeName], "readwrite");
+        const store = transaction.objectStore(storeName);
+        const request = store.put({
+            id,
+            data
+        });
+
+        request.onsuccess = () => resolve();
+        request.onerror = (event) => reject(event.target.error);
+    });
+}
+
+// 从 IndexedDB 获取图标
+function getIconFromDB(storeName, id) {
+    return new Promise((resolve, reject) => {
+        if (!db) {
+            reject("数据库未初始化");
+            return;
+        }
+
+        const transaction = db.transaction([storeName], "readonly");
+        const store = transaction.objectStore(storeName);
+        const request = store.get(id);
+
+        request.onsuccess = (event) => {
+            const result = event.target.result;
+            resolve(result ? result.data : null);
+        };
+
+        request.onerror = (event) => reject(event.target.error);
+    });
+}
+
+// 从 IndexedDB 删除图标
+function deleteIconFromDB(storeName, id) {
+    return new Promise((resolve, reject) => {
+        if (!db) {
+            reject("数据库未初始化");
+            return;
+        }
+
+        const transaction = db.transaction([storeName], "readwrite");
+        const store = transaction.objectStore(storeName);
+        const request = store.delete(id);
+
+        request.onsuccess = () => resolve();
+        request.onerror = (event) => reject(event.target.error);
+    });
+}
+
 // 页面加载时初始化
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
+    // 初始化 IndexedDB
+    try {
+        await initIndexedDB();
+    } catch (error) {
+        console.error("IndexedDB 初始化失败:", error);
+        alert("浏览器存储初始化失败，部分功能可能不可用");
+    }
+
     // 初始化时间和日期
     updateDateTime();
     setInterval(updateDateTime, 1000);
@@ -114,10 +221,20 @@ function renderSearchEngines(engines) {
     engines.forEach(engine => {
         const engineContainer = document.createElement('div');
         engineContainer.className = 'engine-btn-container';
+
+        let iconContent = '';
+        if (engine.type === 'fa') {
+            iconContent = `<i class="${engine.icon}"></i>`;
+        } else if (engine.type === 'url') {
+            iconContent = `<img src="${engine.icon}" alt="${engine.name}" style="width:14px;height:14px;margin-right:3px;">`;
+        } else if (engine.type === 'db') {
+            // 对于数据库类型，稍后异步加载
+            iconContent = `<i class="fas fa-spinner fa-spin"></i>`;
+        }
+
         engineContainer.innerHTML = `
                     <button class="engine-btn" data-engine="${engine.id}">
-                        ${engine.type === 'fa' ? `<i class="${engine.icon}"></i>` : ''}
-                        ${engine.type === 'url' || engine.type === 'upload' ? `<img src="${engine.icon}" alt="${engine.name}" style="width:14px;height:14px;margin-right:3px;">` : ''}
+                        ${iconContent}
                         <span>${engine.name}</span>
                     </button>
                     <button class="engine-edit-btn" data-engine="${engine.id}">
@@ -125,12 +242,37 @@ function renderSearchEngines(engines) {
                     </button>
                 `;
 
+        // 如果是数据库类型，异步加载图标
+        if (engine.type === 'db') {
+            loadEngineIcon(engine.id, engineContainer);
+        }
+
         container.appendChild(engineContainer);
     });
 
     // 设置当前激活的引擎
     const activeEngine = localStorage.getItem('searchEngine') || engines[0].id;
     setActiveEngine(activeEngine);
+}
+
+// 异步加载引擎图标
+async function loadEngineIcon(engineId, container) {
+    try {
+        const iconData = await getIconFromDB(ENGINE_ICONS_STORE, engineId);
+        if (iconData) {
+            const iconElement = container.querySelector('.engine-btn i');
+            if (iconElement) {
+                // 替换为img元素
+                const img = document.createElement('img');
+                img.src = iconData;
+                img.alt = "Engine icon";
+                img.style = "width:14px;height:14px;margin-right:3px;";
+                iconElement.replaceWith(img);
+            }
+        }
+    } catch (error) {
+        console.error("加载引擎图标失败:", error);
+    }
 }
 
 // 设置当前搜索引擎
@@ -183,36 +325,42 @@ function getSavedLinks() {
 
     // 默认链接
     return [{
+            id: 'link1',
             name: 'Xunhaii',
             url: 'https://xunhaii.com',
             icon: 'fab fa-x',
             type: 'fa'
         },
         {
+            id: 'link2',
             name: '知乎',
             url: 'https://www.zhihu.com',
             icon: 'fab fa-zhihu',
             type: 'fa'
         },
         {
+            id: 'link3',
             name: 'B站',
             url: 'https://www.bilibili.com',
             icon: 'fab fa-bilibili',
             type: 'fa'
         },
         {
+            id: 'link4',
             name: '抖音',
             url: 'https://www.douyin.com',
             icon: 'fab fa-tiktok',
             type: 'fa'
         },
         {
+            id: 'link5',
             name: '微博',
             url: 'https://weibo.com',
             icon: 'fab fa-weibo',
             type: 'fa'
         },
         {
+            id: 'link6',
             name: '淘宝',
             url: 'https://www.taobao.com',
             icon: 'fas fa-shopping-cart',
@@ -231,12 +379,16 @@ function renderLinks(links) {
         card.className = 'link-card';
         card.setAttribute('draggable', 'true');
         card.dataset.index = index;
+        card.dataset.id = link.id;
 
         let iconContent = '';
         if (link.type === 'fa') {
             iconContent = `<i class="${link.icon}"></i>`;
-        } else if (link.type === 'url' || link.type === 'upload') {
+        } else if (link.type === 'url') {
             iconContent = `<img src="${link.icon}" alt="${link.name}">`;
+        } else if (link.type === 'db') {
+            // 对于数据库类型，先显示加载图标
+            iconContent = `<i class="fas fa-spinner fa-spin"></i>`;
         }
 
         card.innerHTML = `
@@ -264,7 +416,32 @@ function renderLinks(links) {
         });
 
         container.appendChild(card);
+
+        // 如果是数据库类型，异步加载图标
+        if (link.type === 'db') {
+            loadLinkIcon(link.id, card);
+        }
     });
+}
+
+// 异步加载链接图标
+async function loadLinkIcon(linkId, card) {
+    try {
+        const iconData = await getIconFromDB(LINK_ICONS_STORE, linkId);
+        if (iconData) {
+            const iconContainer = card.querySelector('.link-icon');
+            if (iconContainer) {
+                // 移除加载图标，添加实际图标
+                iconContainer.innerHTML = '';
+                const img = document.createElement('img');
+                img.src = iconData;
+                img.alt = "Link icon";
+                iconContainer.appendChild(img);
+            }
+        }
+    } catch (error) {
+        console.error("加载链接图标失败:", error);
+    }
 }
 
 // 初始化拖放功能
@@ -557,7 +734,7 @@ function toggleFollowSystem() {
 }
 
 // 重置所有设置
-function resetAllSettings() {
+async function resetAllSettings() {
     if (confirm('确定要重置所有设置吗？这将清除所有自定义设置并恢复默认状态。')) {
         // 清除所有本地存储
         localStorage.removeItem('searchEngines');
@@ -566,6 +743,18 @@ function resetAllSettings() {
         localStorage.removeItem('searchHistory');
         localStorage.removeItem('theme');
         localStorage.removeItem('followSystemTheme');
+
+        // 清除 IndexedDB 数据
+        try {
+            const transaction = db.transaction([LINK_ICONS_STORE, ENGINE_ICONS_STORE], "readwrite");
+            const linkStore = transaction.objectStore(LINK_ICONS_STORE);
+            const engineStore = transaction.objectStore(ENGINE_ICONS_STORE);
+
+            linkStore.clear();
+            engineStore.clear();
+        } catch (error) {
+            console.error("重置 IndexedDB 失败:", error);
+        }
 
         // 重新初始化页面
         initSearchEngines();
@@ -784,8 +973,7 @@ function openLinkModal(index = null) {
             document.getElementById('link-url-option').classList.add('active');
             document.querySelectorAll('#link-modal .icon-selector').forEach(el => el.style.display = 'none');
             document.getElementById('link-url-container').style.display = 'block';
-        } else if (link.type === 'upload') {
-            // 上传图片不能直接设置值，需要用户重新选择
+        } else if (link.type === 'db') {
             document.querySelectorAll('#link-modal .icon-option').forEach(o => o.classList.remove('active'));
             document.getElementById('link-upload-option').classList.add('active');
             document.querySelectorAll('#link-modal .icon-selector').forEach(el => el.style.display = 'none');
@@ -855,7 +1043,7 @@ function closeLinkModal() {
 }
 
 // 保存链接
-function saveLink() {
+async function saveLink() {
     const name = document.getElementById('link-name').value.trim();
     const url = document.getElementById('link-url').value.trim();
 
@@ -874,13 +1062,34 @@ function saveLink() {
 
     // 获取图标
     let iconValue = '';
-    if (currentLinkIconType === 'fa') {
+    let iconType = currentLinkIconType;
+    let id = '';
+
+    if (iconType === 'upload') {
+        const fileInput = document.getElementById('link-icon-upload');
+        if (!fileInput.files[0]) {
+            alert('请选择要上传的图标');
+            return;
+        }
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+        reader.onload = async function() {
+            iconValue = reader.result;
+            // 对于上传的图片，我们将其保存到IndexedDB
+            iconType = 'db';
+
+            // 完成保存
+            await completeSaveLink(name, url, iconValue, iconType, id);
+        };
+        reader.readAsDataURL(file);
+        return; // 异步处理，稍后继续
+    } else if (iconType === 'fa') {
         iconValue = document.getElementById('link-fa-icon').value.trim();
         if (!iconValue) {
             alert('请输入Font Awesome图标类名');
             return;
         }
-    } else if (currentLinkIconType === 'url') {
+    } else if (iconType === 'url') {
         iconValue = document.getElementById('link-icon-url').value.trim();
         if (!iconValue) {
             alert('请输入图标URL');
@@ -892,33 +1101,33 @@ function saveLink() {
             alert('请输入有效的图标URL');
             return;
         }
-    } else if (currentLinkIconType === 'upload') {
-        const fileInput = document.getElementById('link-icon-upload');
-        if (!fileInput.files[0]) {
-            alert('请选择要上传的图标');
-            return;
-        }
-        const file = fileInput.files[0];
-        const reader = new FileReader();
-        reader.onload = function() {
-            iconValue = reader.result;
-            completeSaveLink(name, url, iconValue);
-        };
-        reader.readAsDataURL(file);
-        return; // 异步处理，稍后继续
     }
 
-    completeSaveLink(name, url, iconValue);
+    await completeSaveLink(name, url, iconValue, iconType, id);
 }
 
-function completeSaveLink(name, url, iconValue) {
+async function completeSaveLink(name, url, iconValue, iconType, id) {
     const links = getSavedLinks();
     const linkData = {
+        id: id || 'link_' + Date.now(),
         name: name,
         url: url,
         icon: iconValue,
-        type: currentLinkIconType
+        type: iconType
     };
+
+    // 如果是上传的图片类型，保存到IndexedDB
+    if (iconType === 'db') {
+        try {
+            await saveIconToDB(LINK_ICONS_STORE, linkData.id, iconValue);
+        } catch (error) {
+            console.error("保存链接图标失败:", error);
+            alert("保存图标时出错，请重试");
+            return;
+        }
+        // 在链接数据中不存储实际图标数据，只存储类型为'db'
+        linkData.icon = '';
+    }
 
     if (currentEditLinkIndex !== null) {
         // 更新现有链接
@@ -939,9 +1148,20 @@ function completeSaveLink(name, url, iconValue) {
 }
 
 // 删除链接
-function deleteLink(index) {
+async function deleteLink(index) {
     if (confirm('确定要删除这个快捷方式吗？')) {
         const links = getSavedLinks();
+        const link = links[index];
+
+        // 如果是存储在IndexedDB中的图标，删除它
+        if (link.type === 'db') {
+            try {
+                await deleteIconFromDB(LINK_ICONS_STORE, link.id);
+            } catch (error) {
+                console.error("删除链接图标失败:", error);
+            }
+        }
+
         links.splice(index, 1);
         localStorage.setItem('quickLinks', JSON.stringify(links));
         renderLinks(links);
@@ -993,7 +1213,7 @@ function openEngineModal(engineId = null) {
                 document.getElementById('engine-url-option').classList.add('active');
                 document.querySelectorAll('#engine-modal .icon-selector').forEach(el => el.style.display = 'none');
                 document.getElementById('engine-url-container').style.display = 'block';
-            } else if (engine.type === 'upload') {
+            } else if (engine.type === 'db') {
                 document.querySelectorAll('#engine-modal .icon-option').forEach(o => o.classList.remove('active'));
                 document.getElementById('engine-upload-option').classList.add('active');
                 document.querySelectorAll('#engine-modal .icon-selector').forEach(el => el.style.display = 'none');
@@ -1068,7 +1288,7 @@ function closeEngineModal() {
 }
 
 // 保存搜索引擎
-function saveEngine() {
+async function saveEngine() {
     const name = document.getElementById('engine-name').value.trim();
     const url = document.getElementById('engine-url').value.trim();
 
@@ -1084,13 +1304,33 @@ function saveEngine() {
 
     // 获取图标
     let iconValue = '';
-    if (currentEngineIconType === 'fa') {
+    let iconType = currentEngineIconType;
+
+    if (iconType === 'upload') {
+        const fileInput = document.getElementById('engine-icon-upload');
+        if (!fileInput.files[0]) {
+            alert('请选择要上传的图标');
+            return;
+        }
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+        reader.onload = async function() {
+            iconValue = reader.result;
+            // 对于上传的图片，我们将其保存到IndexedDB
+            iconType = 'db';
+
+            // 完成保存
+            await completeSaveEngine(name, url, iconValue, iconType);
+        };
+        reader.readAsDataURL(file);
+        return; // 异步处理，稍后继续
+    } else if (iconType === 'fa') {
         iconValue = document.getElementById('engine-fa-icon').value.trim();
         if (!iconValue) {
             alert('请输入Font Awesome图标类名');
             return;
         }
-    } else if (currentEngineIconType === 'url') {
+    } else if (iconType === 'url') {
         iconValue = document.getElementById('engine-icon-url').value.trim();
         if (!iconValue) {
             alert('请输入图标URL');
@@ -1102,51 +1342,46 @@ function saveEngine() {
             alert('请输入有效的图标URL');
             return;
         }
-    } else if (currentEngineIconType === 'upload') {
-        const fileInput = document.getElementById('engine-icon-upload');
-        if (!fileInput.files[0]) {
-            alert('请选择要上传的图标');
-            return;
-        }
-        const file = fileInput.files[0];
-        const reader = new FileReader();
-        reader.onload = function() {
-            iconValue = reader.result;
-            completeSaveEngine(name, url, iconValue);
-        };
-        reader.readAsDataURL(file);
-        return; // 异步处理，稍后继续
     }
 
-    completeSaveEngine(name, url, iconValue);
+    await completeSaveEngine(name, url, iconValue, iconType);
 }
 
-function completeSaveEngine(name, url, iconValue) {
+async function completeSaveEngine(name, url, iconValue, iconType) {
     const engines = getSavedEngines();
+    const engineId = currentEditEngine ? currentEditEngine.id : `engine_${Date.now()}`;
+
+    // 如果是上传的图片类型，保存到IndexedDB
+    if (iconType === 'db') {
+        try {
+            await saveIconToDB(ENGINE_ICONS_STORE, engineId, iconValue);
+        } catch (error) {
+            console.error("保存搜索引擎图标失败:", error);
+            alert("保存图标时出错，请重试");
+            return;
+        }
+        // 在引擎数据中不存储实际图标数据，只存储类型为'db'
+        iconValue = '';
+    }
+
+    const engineData = {
+        id: engineId,
+        name: name,
+        url: url,
+        icon: iconValue,
+        type: iconType,
+        isDefault: false
+    };
 
     if (currentEditEngine) {
         // 更新现有引擎
-        currentEditEngine.name = name;
-        currentEditEngine.url = url;
-        currentEditEngine.icon = iconValue;
-        currentEditEngine.type = currentEngineIconType;
-
-        // 找到并更新引擎
-        const index = engines.findIndex(e => e.id === currentEditEngine.id);
+        const index = engines.findIndex(e => e.id === engineId);
         if (index !== -1) {
-            engines[index] = currentEditEngine;
+            engines[index] = engineData;
         }
     } else {
         // 添加新引擎
-        const newEngine = {
-            id: 'engine_' + Date.now(),
-            name: name,
-            url: url,
-            icon: iconValue,
-            type: currentEngineIconType,
-            isDefault: false
-        };
-        engines.push(newEngine);
+        engines.push(engineData);
     }
 
     // 保存到localStorage
@@ -1160,7 +1395,7 @@ function completeSaveEngine(name, url, iconValue) {
 }
 
 // 删除搜索引擎
-function deleteEngine() {
+async function deleteEngine() {
     if (!currentEditEngine || currentEditEngine.isDefault) return;
 
     if (confirm(`确定要删除搜索引擎 "${currentEditEngine.name}" 吗？`)) {
@@ -1168,6 +1403,15 @@ function deleteEngine() {
         const index = engines.findIndex(e => e.id === currentEditEngine.id);
 
         if (index !== -1) {
+            // 如果是存储在IndexedDB中的图标，删除它
+            if (currentEditEngine.type === 'db') {
+                try {
+                    await deleteIconFromDB(ENGINE_ICONS_STORE, currentEditEngine.id);
+                } catch (error) {
+                    console.error("删除搜索引擎图标失败:", error);
+                }
+            }
+
             engines.splice(index, 1);
 
             // 保存到localStorage
@@ -1184,12 +1428,12 @@ function deleteEngine() {
 
 // 设置主题色
 function setThemeColor() {
-  const themeColor = document.getElementById('theme-color');
-  if (document.body.classList.contains('dark-mode')) {
-    themeColor.content = '#1a1a2e'; // 夜间模式主题色
-  } else {
-    themeColor.content = '#f5f7fa'; // 日间模式主题色
-  }
+    const themeColor = document.getElementById('theme-color');
+    if (document.body.classList.contains('dark-mode')) {
+        themeColor.content = '#1a1a2e'; // 夜间模式主题色
+    } else {
+        themeColor.content = '#f5f7fa'; // 日间模式主题色
+    }
 }
 
 // 全局变量
