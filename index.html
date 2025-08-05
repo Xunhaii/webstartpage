@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xunhaii起始页</title>
+    <meta name="theme-color" id="theme-color" content="#f5f7fa">
+    <link rel="stylesheet" href="/css/fontawesome.all.min.css">
+    <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <i class="fas fa-compass"></i>
+                <span>Xunhaii起始页</span>
+            </div>
+            <div class="header-controls">
+                <button class="theme-btn" id="theme-toggle">
+                    <i class="fas fa-moon"></i>
+                </button>
+                <button class="settings-btn" id="settings-toggle">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </header>
+        
+        <!-- 设置面板 -->
+        <div class="settings-panel" id="settings-panel">
+            <div class="settings-item">
+                <span class="settings-label">跟随系统主题</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="system-theme-toggle" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <button class="reset-btn" id="reset-settings">
+                <i class="fas fa-redo"></i>
+                <span>重置所有设置</span>
+            </button>
+        </div>
+
+        <div class="main-content">
+            <div class="time-container">
+                <div class="time" id="current-time">00:00</div>
+                <div class="date" id="current-date">2023年1月1日 星期一</div>
+            </div>
+
+            <div class="search-container">
+                <div class="search-engine-controls">
+                    <div class="search-engine-selector" id="engine-container">
+                        <!-- 搜索引擎按钮将通过JS动态添加 -->
+                    </div>
+                    <button class="add-engine-btn" id="add-engine-btn">
+                        <i class="fas fa-plus"></i>
+                        <span>添加引擎</span>
+                    </button>
+                </div>
+                <div class="search-box">
+                    <input type="text" id="search-input" autocomplete="off" placeholder="搜索互联网...">
+                    <button id="search-btn">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="links-section">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <i class="fas fa-bookmark"></i>
+                        <span>快捷方式</span>
+                    </h2>
+                    <button class="add-btn" id="add-link-btn">
+                        <i class="fas fa-plus"></i>
+                        <span>添加快捷方式</span>
+                    </button>
+                </div>
+                <div class="links-grid" id="links-container">
+                    <!-- 链接将通过JS动态添加 -->
+                </div>
+            </div>
+
+            <div class="history-section">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <i class="fas fa-history"></i>
+                        <span>历史搜索</span>
+                    </h2>
+                </div>
+                <div class="history-container">
+                    <div class="history-header">
+                        <h3>最近搜索记录</h3>
+                        <button class="clear-history" id="clear-history">
+                            <i class="fas fa-trash"></i>
+                            <span>清空历史</span>
+                        </button>
+                    </div>
+                    <div class="history-grid" id="history-container">
+                        <!-- 历史记录将通过JS动态添加 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 版权信息 -->
+        <div class="footer">
+            © 2025 Xunhaii. | All rights reserved.
+        </div>
+    </div>
+
+    <!-- 添加快捷方式模态框 -->
+    <div class="modal" id="link-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="link-modal-title">添加快捷方式</h3>
+                <button class="close-btn" id="close-link-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="link-name">名称</label>
+                    <input type="text" id="link-name" class="form-control" placeholder="例如：Xunhaii">
+                </div>
+                <div class="form-group">
+                    <label for="link-url">网址</label>
+                    <input type="text" id="link-url" class="form-control" placeholder="例如：https://xunhaii.com">
+                </div>
+                <div class="form-group">
+                    <label>图标设置</label>
+                    <div class="icon-options">
+                        <div class="icon-option" data-type="fa" id="link-fa-option">
+                            <i class="fas fa-icons"></i>
+                            <div>Font Awesome</div>
+                        </div>
+                        <div class="icon-option" data-type="url" id="link-url-option">
+                            <i class="fas fa-link"></i>
+                            <div>图片链接</div>
+                        </div>
+                        <div class="icon-option" data-type="upload" id="link-upload-option">
+                            <i class="fas fa-upload"></i>
+                            <div>上传图片</div>
+                        </div>
+                    </div>
+                    
+                    <div class="icon-preview" id="link-icon-preview">
+                        <i class="fas fa-link"></i>
+                    </div>
+                    
+                    <div id="link-fa-container" class="icon-selector">
+                        <input type="text" id="link-fa-icon" class="form-control" placeholder="输入Font Awesome图标类名 (如: fab fa-x)">
+                    </div>
+                    
+                    <div id="link-url-container" class="icon-selector" style="display:none">
+                        <input type="text" id="link-icon-url" class="form-control" placeholder="输入图标图片URL">
+                    </div>
+                    
+                    <div id="link-upload-container" class="icon-selector" style="display:none">
+                        <div class="custom-upload">
+                            <div class="custom-upload-button">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <span>选择图标文件</span>
+                            </div>
+                            <input type="file" id="link-icon-upload" accept="image/*">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" id="cancel-link-btn">取消</button>
+                <button class="btn btn-primary" id="save-link-btn">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加/编辑搜索引擎模态框 -->
+    <div class="modal" id="engine-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="engine-modal-title">添加搜索引擎</h3>
+                <button class="close-btn" id="close-engine-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="engine-name">名称</label>
+                    <input type="text" id="engine-name" class="form-control" placeholder="例如：DuckDuckGo">
+                </div>
+                <div class="form-group">
+                    <label for="engine-url">搜索URL</label>
+                    <input type="text" id="engine-url" class="form-control" placeholder="例如：https://duckduckgo.com/?q={query}">
+                    <small class="hint">使用{query}作为搜索查询占位符</small>
+                </div>
+                <div class="form-group">
+                    <label>图标设置</label>
+                    <div class="icon-options">
+                        <div class="icon-option" data-type="fa" id="engine-fa-option">
+                            <i class="fas fa-icons"></i>
+                            <div>Font Awesome</div>
+                        </div>
+                        <div class="icon-option" data-type="url" id="engine-url-option">
+                            <i class="fas fa-link"></i>
+                            <div>图片链接</div>
+                        </div>
+                        <div class="icon-option" data-type="upload" id="engine-upload-option">
+                            <i class="fas fa-upload"></i>
+                            <div>上传图片</div>
+                        </div>
+                    </div>
+                    
+                    <div class="icon-preview" id="engine-icon-preview">
+                        <i class="fas fa-search"></i>
+                    </div>
+                    
+                    <div id="engine-fa-container" class="icon-selector">
+                        <input type="text" id="engine-fa-icon" class="form-control" placeholder="输入Font Awesome图标类名 (如: fas fa-search)">
+                    </div>
+                    
+                    <div id="engine-url-container" class="icon-selector" style="display:none">
+                        <input type="text" id="engine-icon-url" class="form-control" placeholder="输入图标图片URL">
+                    </div>
+                    
+                    <div id="engine-upload-container" class="icon-selector" style="display:none">
+                        <div class="custom-upload">
+                            <div class="custom-upload-button">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <span>选择图标文件</span>
+                            </div>
+                            <input type="file" id="engine-icon-upload" accept="image/*">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" id="delete-engine-btn" style="display:none">删除</button>
+                <button class="btn btn-outline" id="cancel-engine-btn">取消</button>
+                <button class="btn btn-primary" id="save-engine-btn">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/main.js"></script>
+</body>
+</html>
