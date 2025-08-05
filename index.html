@@ -4,6 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Xunhaii起始页</title>
+    <meta name="description" content="Xunhaii起始页 - 简约优雅的浏览器起始页，提供自定义快捷链接、自定义搜索引擎、主题切换、历史记录等功能">
+    <meta name="keywords" content="Xunhaii起始页,浏览器起始页,个性化主页,快速搜索,书签管理,历史记录">
+    <meta name="author" content="Xunhaii">
+    <meta property="og:title" content="Xunhaii起始页">
+    <meta property="og:description" content="简约的浏览器起始页，提供自定义快捷链接、自定义搜索引擎、主题切换、历史记录等功能">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://start.xunhaii.com">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Xunhaii起始页">
+    <meta name="twitter:description" content="简约的浏览器起始页">
     <meta name="theme-color" id="theme-color" content="#f5f7fa">
     <link rel="stylesheet" href="/css/fontawesome.all.min.css">
     <link rel="stylesheet" href="/css/main.css">
@@ -41,7 +51,7 @@
         </div>
 
         <div class="main-content">
-            <div class="time-container">
+            <div class="time-container" aria-label="当前时间">
                 <div class="time" id="current-time">00:00</div>
                 <div class="date" id="current-date">2023年1月1日 星期一</div>
             </div>
@@ -64,9 +74,9 @@
                 </div>
             </div>
 
-            <div class="links-section">
+            <div class="links-section" aria-labelledby="quick-links-title">
                 <div class="section-header">
-                    <h2 class="section-title">
+                    <h2 class="section-title" id="quick-links-title">
                         <i class="fas fa-bookmark"></i>
                         <span>快捷方式</span>
                     </h2>
@@ -80,9 +90,9 @@
                 </div>
             </div>
 
-            <div class="history-section">
+            <div class="history-section" aria-labelledby="search-history-title">
                 <div class="section-header">
-                    <h2 class="section-title">
+                    <h2 class="section-title" id="search-history-title">
                         <i class="fas fa-history"></i>
                         <span>历史搜索</span>
                     </h2>
@@ -122,7 +132,7 @@
                 </div>
                 <div class="form-group">
                     <label for="link-url">网址</label>
-                    <input type="text" id="link-url" class="form-control" placeholder="例如：https://xunhaii.com">
+                    <input type="text" id="link-url" class="form-control" placeholder="例如：https://www.xunhaii.com">
                 </div>
                 <div class="form-group">
                     <label>图标设置</label>
