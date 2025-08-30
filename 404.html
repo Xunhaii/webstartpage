@@ -1,3 +1,53 @@
-<html>
-<meta http-equiv="refresh" content="0;url=http://start.xunhaii.com/">
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>页面未找到 - Xunhaii起始页</title>
+    <meta name="description" content="Xunhaii起始页 - 简约优雅的浏览器起始页">
+    <meta name="theme-color" id="theme-color" content="#f5f7fa">
+    <link rel="stylesheet" href="/css/fontawesome.all.min.css">
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/404.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <i class="fas fa-compass"></i>
+                <span>Xunhaii起始页</span>
+            </div>
+            <div class="header-controls">
+                <button class="theme-btn" id="theme-toggle">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="error-content">
+            <div class="error-illustration">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <div class="error-code">404</div>
+            <div class="error-message">抱歉，您访问的页面不存在或已被移除</div>
+            
+            <div class="error-actions">
+                <a href="/" class="error-btn">
+                    <i class="fas fa-home"></i>
+                    <span>返回首页</span>
+                </a>
+                <button class="error-btn" onclick="window.history.back()">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>返回上一页</span>
+                </button>
+            </div>
+        </div>
+        
+        <div class="footer">
+            © 2025 Xunhaii. | All rights reserved.
+        </div>
+    </div>
+
+    <script src="/js/404.js"></script>
+</body>
 </html>
