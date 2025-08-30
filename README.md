@@ -1,5 +1,6 @@
 # Xunhaii起始页
 简约大气的浏览器起始页
+---
 ## 功能亮点
 
 1. **完全自定义搜索引擎**
@@ -26,3 +27,10 @@
    - 响应式设计适配各种屏幕尺寸
    - 优化触摸区域和交互体验
    - 调整字体大小和间距
+ ---
+ ## 版权声明
+     Copyright © 2025 Xunhaii.
+本浏览器起始页项目主体文件以[GNU AGPLv3](https://github.com/Xunhaii/webstartpage?tab=AGPL-3.0-1-ov-file)协议分发  
+本浏览器起始页项目所引用的FontAwesome库许可协议请[参见此处](https://github.com/Xunhaii/webstartpage/blob/master/LICENCE-FontAwesome.md)  
+ 
+ 在分发本起始页项目时，请保留开源地址以及原作者署名。
