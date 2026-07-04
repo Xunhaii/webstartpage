@@ -180,7 +180,7 @@ function initSearchEngines() {
                 id: 'baidu',
                 name: '百度',
                 url: 'https://www.baidu.com/s?wd={query}',
-                icon: 'https://start.xunhaii.com/src/svg/baidu.svg',
+                icon: 'https://static.xunhaii.com/images/svg/baidu.svg',
                 type: 'url',
                 isDefault: true
             },
