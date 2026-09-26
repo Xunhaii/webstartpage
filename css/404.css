@@ -1,3 +1,85 @@
+/* ============================================================
+   Xunhaii 起始页 · 404 页面样式
+   与主页面共享设计语言：相同的背景层、配色、玻璃拟态、主题系统
+   ============================================================ */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+:root {
+    --bg-image: url('https://www.xunhaii.com/bing-wallpaper/bing-wallpaper.jpg');
+    --bg-opacity: 0.2;
+    --bg-blur: 0px;
+    --bg-brightness: 100%;
+    --bg-saturation: 100%;
+    --bg-overlay: 0;
+    --accent: #4da6ff;
+    --accent-light: #80c0ff;
+}
+
+body {
+    background: linear-gradient(135deg, #f5f7fa, #e4e7eb);
+    color: #333;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 15px;
+    overflow-x: hidden;
+    position: relative;
+}
+
+/* ============================================================
+   背景层（图片 + 效果）
+   ============================================================ */
+body::before {
+    content: '';
+    position: fixed;
+    top: -60px;
+    left: -60px;
+    right: -60px;
+    bottom: -60px;
+    background-image: var(--bg-image);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: var(--bg-opacity);
+    filter: blur(var(--bg-blur))
+            brightness(var(--bg-brightness))
+            saturate(var(--bg-saturation));
+    z-index: -2;
+    pointer-events: none;
+    transition: opacity 0.3s ease, filter 0.3s ease;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+
+/* 暗色遮罩层 */
+body::after {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, var(--bg-overlay));
+    z-index: -1;
+    pointer-events: none;
+    transition: background-color 0.3s ease;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+}
+
+body.has-custom-bg { --bg-opacity: 1; }
+
+body.dark-mode {
+    background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+    color: #f1f1f1;
+}
+
 .container {
     max-width: 1200px;
     margin: 0 auto;
@@ -6,7 +88,43 @@
     position: relative;
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    min-height: calc(100vh - 30px);
+}
+
+/* ============================================================
+   头部（与主页面一致）
+   ============================================================ */
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding: 10px 0;
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: 700;
+    background: linear-gradient(45deg, #4da6ff, #80c0ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+}
+
+.logo i {
+    margin-right: 8px;
+    font-size: 1.8rem;
+    color: #4da6ff;
+    -webkit-text-fill-color: #4da6ff;
+}
+
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .theme-btn {
@@ -35,116 +153,319 @@
     transform: scale(1.1);
 }
 
-/* 错误内容区域 */
-.error-content {
+/* 高斯模糊关闭（与主页共用 localStorage.blurEnabled） */
+body.no-blur .theme-btn,
+body.no-blur .error-card,
+body.no-blur .btn {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+/* ============================================================
+   主内容
+   ============================================================ */
+.error-main {
     flex: 1;
     display: flex;
     flex-direction: column;
-    justify-content: center;
     align-items: center;
+    justify-content: center;
     text-align: center;
-    padding: 40px 20px;
+    padding: 20px 0 40px;
 }
 
-.error-illustration {
-    margin-bottom: 30px;
-    opacity: 0.8;
+/* 装饰光晕 */
+.error-glow {
+    position: relative;
+    margin-bottom: 8px;
 }
 
-.error-illustration i {
-    font-size: 8rem;
-    color: #4da6ff;
+.error-glow::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 380px;
+    height: 380px;
+    max-width: 90vw;
+    max-height: 90vw;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(circle,
+        rgba(77, 166, 255, 0.28) 0%,
+        rgba(77, 166, 255, 0.12) 40%,
+        rgba(77, 166, 255, 0) 70%);
+    border-radius: 50%;
+    z-index: 0;
+    pointer-events: none;
+    animation: pulseGlow 4s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+    0%, 100% { opacity: 0.8; transform: translate(-50%, -50%) scale(1); }
+    50%      { opacity: 1;   transform: translate(-50%, -50%) scale(1.08); }
 }
 
 .error-code {
-    font-size: 4rem;
-    font-weight: 700;
+    position: relative;
+    z-index: 1;
+    font-size: clamp(6rem, 20vw, 12rem);
+    font-weight: 800;
+    line-height: 0.95;
+    letter-spacing: -0.05em;
+    background: linear-gradient(135deg, #4da6ff 0%, #80c0ff 45%, #4da6ff 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 8px 24px rgba(77, 166, 255, 0.25));
+    animation: floatIn 0.9s cubic-bezier(0.25, 0.8, 0.25, 1),
+               shimmer 6s ease-in-out infinite;
+}
+
+@keyframes floatIn {
+    from { opacity: 0; transform: translateY(24px) scale(0.94); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes shimmer {
+    0%, 100% { background-position: 0% center; }
+    50%      { background-position: 100% center; }
+}
+
+/* 漂浮的指南针图标 */
+.error-icon {
+    position: absolute;
+    top: -6px;
+    right: -18px;
+    z-index: 2;
+    font-size: 2.2rem;
     color: #4da6ff;
-    margin-bottom: 10px;
+    -webkit-text-fill-color: #4da6ff;
+    opacity: 0.85;
+    animation: floatIcon 3s ease-in-out infinite;
+    filter: drop-shadow(0 4px 10px rgba(77, 166, 255, 0.4));
 }
 
-.error-message {
-    font-size: 1.5rem;
-    margin-bottom: 30px;
-    opacity: 0.9;
-    max-width: 600px;
-    line-height: 1.5;
+@keyframes floatIcon {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50%      { transform: translateY(-10px) rotate(12deg); }
 }
 
+.error-title {
+    font-size: clamp(1.4rem, 3.5vw, 2rem);
+    font-weight: 600;
+    margin-bottom: 14px;
+    color: inherit;
+    animation: floatIn 1s cubic-bezier(0.25, 0.8, 0.25, 1) 0.1s both;
+}
+
+.error-desc {
+    font-size: 1rem;
+    opacity: 0.78;
+    max-width: 520px;
+    line-height: 1.7;
+    margin-bottom: 32px;
+    animation: floatIn 1s cubic-bezier(0.25, 0.8, 0.25, 1) 0.2s both;
+}
+
+.error-path {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 3px 10px;
+    background: rgba(77, 166, 255, 0.12);
+    color: #4da6ff;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-family: 'Consolas', 'Monaco', monospace;
+    word-break: break-all;
+    max-width: 100%;
+}
+
+.dark-mode .error-path {
+    background: rgba(77, 166, 255, 0.18);
+    color: #80c0ff;
+}
+
+/* ============================================================
+   按钮
+   ============================================================ */
 .error-actions {
     display: flex;
-    gap: 15px;
-    margin-top: 30px;
+    gap: 12px;
     flex-wrap: wrap;
     justify-content: center;
+    animation: floatIn 1s cubic-bezier(0.25, 0.8, 0.25, 1) 0.3s both;
 }
 
-.error-btn {
-    background: rgba(77, 166, 255, 0.8);
-    color: white;
-    border: none;
-    padding: 12px 24px;
-    border-radius: 25px;
+.btn {
+    padding: 11px 26px;
+    border-radius: 24px;
     cursor: pointer;
-    font-size: 1rem;
-    display: flex;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    border: none;
+    font-family: inherit;
+    display: inline-flex;
     align-items: center;
     gap: 8px;
-    transition: all 0.3s ease;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.btn i {
+    font-size: 13px;
+}
+
+.btn-primary {
+    background: #4da6ff;
+    color: white;
+    box-shadow: 0 2px 8px rgba(77, 166, 255, 0.35);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}
+
+.btn-primary:hover {
+    background: #3d8fdf;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(77, 166, 255, 0.45);
+}
+
+.btn-outline {
+    background: rgba(255, 255, 255, 0.55);
+    color: #444;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}
+
+.dark-mode .btn-outline {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.85);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.btn-outline:hover {
+    background: rgba(255, 255, 255, 0.75);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+
+.dark-mode .btn-outline:hover {
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+/* 底部提示 */
+.error-footer-tip {
+    margin-top: 40px;
+    font-size: 12px;
+    opacity: 0.55;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    animation: floatIn 1s cubic-bezier(0.25, 0.8, 0.25, 1) 0.4s both;
+}
+
+.error-footer-tip i {
+    color: #f59e0b;
+}
+
+/* ============================================================
+   页脚（与主页面一致）
+   ============================================================ */
+.footer {
+    text-align: center;
+    padding: 15px 0;
+    color: #666;
+    font-size: 12px;
+    text-shadow: 0 1px 4px rgba(255, 255, 255, 0.6);
+    line-height: 1.9;
+}
+
+.dark-mode .footer {
+    color: rgba(255, 255, 255, 0.7);
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.footer a {
+    color: inherit;
     text-decoration: none;
 }
 
-.error-btn:hover {
-    background: rgba(77, 166, 255, 1);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 10px rgba(77, 166, 255, 0.4);
+.footer a:hover {
+    text-decoration: underline;
 }
 
-/* 响应式设计 */
+.footer img {
+    vertical-align: middle;
+    height: 14px;
+}
+
+/* ============================================================
+   响应式
+   ============================================================ */
 @media (max-width: 768px) {
-    .error-illustration i {
-        font-size: 6rem;
+    .container { padding: 10px; }
+    header { margin-bottom: 15px; }
+    .logo { font-size: 1.3rem; }
+    .logo i { font-size: 1.5rem; }
+
+    .error-icon { font-size: 1.7rem; right: -12px; top: -2px; }
+
+    .error-desc {
+        font-size: 0.92rem;
+        padding: 0 8px;
+        margin-bottom: 26px;
     }
 
-    .error-code {
-        font-size: 3rem;
+    .btn {
+        padding: 10px 22px;
+        font-size: 13px;
     }
 
-    .error-message {
-        font-size: 1.2rem;
-    }
-
-    .error-btn {
-        padding: 10px 20px;
-        font-size: 0.9rem;
+    .error-footer-tip {
+        margin-top: 32px;
+        padding: 0 12px;
+        text-align: center;
     }
 }
 
 @media (max-width: 480px) {
-    .error-illustration i {
-        font-size: 5rem;
-    }
+    .container { padding: 8px; }
+    .logo { font-size: 1.1rem; }
+    .logo i { font-size: 1.3rem; }
 
-    .error-code {
-        font-size: 2.5rem;
-    }
+    .theme-btn { width: 34px; height: 34px; font-size: 14px; }
+
+    .error-icon { font-size: 1.4rem; right: -8px; top: 0; }
 
     .error-actions {
         flex-direction: column;
-        align-items: center;
+        width: 100%;
+        max-width: 280px;
     }
 
-    .error-btn {
+    .btn {
         width: 100%;
-        max-width: 250px;
         justify-content: center;
     }
+}
 
-    .logo {
-        font-size: 1.3rem;
-    }
-
-    .logo i {
-        font-size: 1.5rem;
+/* 减少动画偏好 */
+@media (prefers-reduced-motion: reduce) {
+    .error-code,
+    .error-title,
+    .error-desc,
+    .error-actions,
+    .error-footer-tip,
+    .error-icon,
+    .error-glow::before {
+        animation: none !important;
     }
 }

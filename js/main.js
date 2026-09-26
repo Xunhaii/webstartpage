@@ -1,6 +1,8 @@
-// 安全函数：转义HTML特殊字符
+// ============================================================
+// 安全函数
+// ============================================================
 function escapeHtml(unsafe) {
-    if (!unsafe) return unsafe;
+    if (unsafe === null || unsafe === undefined) return '';
     return unsafe.toString()
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
@@ -9,108 +11,145 @@ function escapeHtml(unsafe) {
         .replace(/'/g, "&#039;");
 }
 
-// IndexedDB 数据库初始化
+function sanitizeFaClass(cls) {
+    if (!cls) return '';
+    return cls.toString().replace(/[^a-zA-Z0-9\s\-]/g, '').trim();
+}
+
+function cssUrl(url) {
+    if (!url) return 'none';
+    const escaped = url
+        .replace(/\\/g, '\\\\')
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r');
+    return `url("${escaped}")`;
+}
+
+// ============================================================
+// 常量
+// ============================================================
+const DEFAULT_BG_URL = 'https://www.xunhaii.com/bing-wallpaper/bing-wallpaper.jpg';
+const CONFIG_VERSION = 1;
+
+// ============================================================
+// IndexedDB
+// ============================================================
 let db;
 const DB_NAME = "XunhaiiStartPageDB";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const LINK_ICONS_STORE = "linkIcons";
 const ENGINE_ICONS_STORE = "engineIcons";
+const BG_STORE = "backgroundImage";
+const BG_KEY = "current";
 
-// 初始化 IndexedDB
 function initIndexedDB() {
     return new Promise((resolve, reject) => {
         const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-        request.onerror = function(event) {
+        request.onerror = (event) => {
             console.error("IndexedDB 错误:", event.target.error);
             reject(event.target.error);
         };
 
-        request.onsuccess = function(event) {
+        request.onsuccess = (event) => {
             db = event.target.result;
             resolve(db);
         };
 
-        request.onupgradeneeded = function(event) {
+        request.onupgradeneeded = (event) => {
             const db = event.target.result;
-
-            // 创建存储对象仓库
-            if (!db.objectStoreNames.contains(LINK_ICONS_STORE)) {
-                db.createObjectStore(LINK_ICONS_STORE, {
-                    keyPath: 'id'
-                });
-            }
-
-            if (!db.objectStoreNames.contains(ENGINE_ICONS_STORE)) {
-                db.createObjectStore(ENGINE_ICONS_STORE, {
-                    keyPath: 'id'
-                });
-            }
+            if (!db.objectStoreNames.contains(LINK_ICONS_STORE)) db.createObjectStore(LINK_ICONS_STORE, { keyPath: 'id' });
+            if (!db.objectStoreNames.contains(ENGINE_ICONS_STORE)) db.createObjectStore(ENGINE_ICONS_STORE, { keyPath: 'id' });
+            if (!db.objectStoreNames.contains(BG_STORE)) db.createObjectStore(BG_STORE, { keyPath: 'id' });
         };
     });
 }
 
-// 保存图标到 IndexedDB
 function saveIconToDB(storeName, id, data) {
     return new Promise((resolve, reject) => {
-        if (!db) {
-            reject("数据库未初始化");
-            return;
-        }
-
+        if (!db) return reject("数据库未初始化");
         const transaction = db.transaction([storeName], "readwrite");
         const store = transaction.objectStore(storeName);
-        const request = store.put({
-            id,
-            data
-        });
-
+        const request = store.put({ id, data });
         request.onsuccess = () => resolve();
         request.onerror = (event) => reject(event.target.error);
     });
 }
 
-// 从 IndexedDB 获取图标
 function getIconFromDB(storeName, id) {
     return new Promise((resolve, reject) => {
-        if (!db) {
-            reject("数据库未初始化");
-            return;
-        }
-
+        if (!db) return reject("数据库未初始化");
         const transaction = db.transaction([storeName], "readonly");
         const store = transaction.objectStore(storeName);
         const request = store.get(id);
-
         request.onsuccess = (event) => {
             const result = event.target.result;
             resolve(result ? result.data : null);
         };
-
         request.onerror = (event) => reject(event.target.error);
     });
 }
 
-// 从 IndexedDB 删除图标
 function deleteIconFromDB(storeName, id) {
     return new Promise((resolve, reject) => {
-        if (!db) {
-            reject("数据库未初始化");
-            return;
-        }
-
+        if (!db) return reject("数据库未初始化");
         const transaction = db.transaction([storeName], "readwrite");
         const store = transaction.objectStore(storeName);
         const request = store.delete(id);
-
         request.onsuccess = () => resolve();
         request.onerror = (event) => reject(event.target.error);
     });
 }
 
-// 页面加载时初始化
-document.addEventListener('DOMContentLoaded', async function() {
-    // 初始化 IndexedDB
+// ============================================================
+// 全局状态
+// ============================================================
+let currentEditLinkIndex = null;
+let currentEditLinkId = null;
+let currentEditLinkOriginalType = null;
+let currentLinkIconType = 'fa';
+let currentLinkKeepExistingIcon = false;
+
+let currentEditEngine = null;
+let currentEngineIconType = 'fa';
+let currentEngineKeepExistingIcon = false;
+
+let currentBgType = 'none';
+let currentBgValue = '';
+let bgKeepExisting = false;
+let previewEffects = { blur: 0, brightness: 100, saturation: 100, overlay: 0 };
+
+let touchState = {
+    card: null,
+    container: null,
+    timer: null,
+    started: false,
+    dragging: false,
+    startX: 0,
+    startY: 0,
+    shouldOpenOnTap: false
+};
+let suppressNextClick = false;
+
+const DEFAULT_EFFECTS = { blur: 0, brightness: 100, saturation: 100, overlay: 0 };
+
+const BG_PRESETS = {
+    none:   { blur: 0,  brightness: 100, saturation: 100, overlay: 0 },
+    dreamy: { blur: 8,  brightness: 108, saturation: 120, overlay: 0 },
+    cinema: { blur: 4,  brightness: 75,  saturation: 85,  overlay: 30 },
+    mono:   { blur: 2,  brightness: 100, saturation: 0,   overlay: 10 },
+    vivid:  { blur: 0,  brightness: 105, saturation: 160, overlay: 0 }
+};
+
+const LONG_PRESS_MS = 450;
+const LONG_PRESS_MOVE_CANCEL = 12;
+const DRAG_START_THRESHOLD = 15;
+
+// ============================================================
+// 初始化
+// ============================================================
+document.addEventListener('DOMContentLoaded', async function () {
     try {
         await initIndexedDB();
     } catch (error) {
@@ -118,102 +157,90 @@ document.addEventListener('DOMContentLoaded', async function() {
         alert("浏览器存储初始化失败，部分功能可能不可用");
     }
 
-    // 初始化时间和日期
     updateDateTime();
     setInterval(updateDateTime, 1000);
 
-    // 初始化搜索引擎
     initSearchEngines();
-
-    // 初始化快捷链接
     initQuickLinks();
-
-    // 初始化历史记录
     initSearchHistory();
-
-    // 初始化主题
     initTheme();
+    initBlurToggle();
+    await loadBackground();
+    initLinksTip();
 
-    // 设置事件监听器
     setupEventListeners();
-
-    // 初始化拖放功能
     initDragAndDrop();
+    initEngineDragAndDrop();
 });
 
-// 更新时间和日期
+// ============================================================
+// 时间
+// ============================================================
 function updateDateTime() {
     const now = new Date();
-    const timeElement = document.getElementById('current-time');
-    const dateElement = document.getElementById('current-date');
-
-    // 格式化时间
     const hours = String(now.getHours()).padStart(2, '0');
     const minutes = String(now.getMinutes()).padStart(2, '0');
-    timeElement.textContent = `${hours}:${minutes}`;
+    document.getElementById('current-time').textContent = `${hours}:${minutes}`;
 
-    // 格式化日期
     const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
     const months = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
-    const dayName = days[now.getDay()];
-    const month = months[now.getMonth()];
-    const date = now.getDate();
-    const year = now.getFullYear();
-    dateElement.textContent = `${year}年${month}${date}日 ${dayName}`;
+    document.getElementById('current-date').textContent =
+        `${now.getFullYear()}年${months[now.getMonth()]}${now.getDate()}日 ${days[now.getDay()]}`;
 }
 
-// 初始化搜索引擎
+// ============================================================
+// 提示卡片
+// ============================================================
+function initLinksTip() {
+    const tip = document.getElementById('links-tip-card');
+    const btn = document.getElementById('links-tip-dismiss');
+    if (!tip || !btn) return;
+
+    if (localStorage.getItem('linksTipDismissed') === 'true') {
+        tip.classList.add('dismissed');
+        return;
+    }
+
+    btn.addEventListener('click', () => {
+        tip.classList.add('dismissed');
+        localStorage.setItem('linksTipDismissed', 'true');
+    });
+}
+
+// ============================================================
+// 搜索引擎
+// ============================================================
 function initSearchEngines() {
     let engines = getSavedEngines();
 
-    // 如果没有保存的引擎，创建默认引擎
     if (engines.length === 0) {
-        engines = [{
-                id: 'bing',
-                name: '必应',
-                url: 'https://www.bing.com/search?q={query}',
-                icon: 'fab fa-microsoft',
-                type: 'fa',
-                isDefault: true
-            },
-            {
-                id: 'baidu',
-                name: '百度',
-                url: 'https://www.baidu.com/s?wd={query}',
-                icon: 'https://static.xunhaii.com/images/svg/baidu.svg',
-                type: 'url',
-                isDefault: true
-            },
-            {
-                id: 'google',
-                name: '谷歌',
-                url: 'https://www.google.com/search?q={query}',
-                icon: 'fab fa-google',
-                type: 'fa',
-                isDefault: true
-            }
+        engines = [
+            { id: 'bing', name: '必应', url: 'https://www.bing.com/search?q={query}', icon: 'fab fa-microsoft', type: 'fa', isDefault: true },
+            { id: 'baidu', name: '百度', url: 'https://www.baidu.com/s?wd={query}', icon: 'https://static.xunhaii.com/images/svg/baidu.svg', type: 'url', isDefault: true },
+            { id: 'google', name: '谷歌', url: 'https://www.google.com/search?q={query}', icon: 'fab fa-google', type: 'fa', isDefault: true }
         ];
         localStorage.setItem('searchEngines', JSON.stringify(engines));
     }
 
-    // 设置默认引擎
-    const savedEngine = localStorage.getItem('searchEngine') || engines[0].id;
-    setActiveEngine(savedEngine);
+    let savedEngine = localStorage.getItem('searchEngine');
+    if (!savedEngine || !engines.some(e => e.id === savedEngine)) {
+        savedEngine = engines[0].id;
+        localStorage.setItem('searchEngine', savedEngine);
+    }
 
-    // 渲染引擎
+    setActiveEngine(savedEngine);
     renderSearchEngines(engines);
 }
 
-// 获取保存的搜索引擎
 function getSavedEngines() {
-    const savedEngines = localStorage.getItem('searchEngines');
-    if (savedEngines) {
-        return JSON.parse(savedEngines);
+    const raw = localStorage.getItem('searchEngines');
+    if (raw) {
+        try { return JSON.parse(raw); }
+        catch (e) { console.error('解析搜索引擎数据失败:', e); return []; }
     }
     return [];
 }
 
-// 渲染搜索引擎
 function renderSearchEngines(engines) {
     const container = document.getElementById('engine-container');
     container.innerHTML = '';
@@ -221,52 +248,48 @@ function renderSearchEngines(engines) {
     engines.forEach(engine => {
         const engineContainer = document.createElement('div');
         engineContainer.className = 'engine-btn-container';
+        engineContainer.setAttribute('draggable', 'true');
+        engineContainer.dataset.engineId = engine.id;
+
+        const safeName = escapeHtml(engine.name);
+        const safeId = escapeHtml(engine.id);
 
         let iconContent = '';
         if (engine.type === 'fa') {
-            iconContent = `<i class="${engine.icon}"></i>`;
+            iconContent = `<i class="${sanitizeFaClass(engine.icon)}"></i>`;
         } else if (engine.type === 'url') {
-            iconContent = `<img src="${engine.icon}" alt="${engine.name}" style="width:14px;height:14px;margin-right:3px;">`;
+            iconContent = `<img src="${escapeHtml(engine.icon)}" alt="" onerror="this.style.display='none'">`;
         } else if (engine.type === 'db') {
-            // 对于数据库类型，稍后异步加载
             iconContent = `<i class="fas fa-spinner fa-spin"></i>`;
         }
 
         engineContainer.innerHTML = `
-                    <button class="engine-btn" data-engine="${engine.id}">
-                        ${iconContent}
-                        <span>${engine.name}</span>
-                    </button>
-                    <button class="engine-edit-btn" data-engine="${engine.id}">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                `;
+            <button class="engine-btn" data-engine="${safeId}" type="button">
+                ${iconContent}
+                <span>${safeName}</span>
+            </button>
+            <button class="engine-edit-btn" data-engine="${safeId}" type="button" aria-label="编辑">
+                <i class="fas fa-edit"></i>
+            </button>
+        `;
 
-        // 如果是数据库类型，异步加载图标
-        if (engine.type === 'db') {
-            loadEngineIcon(engine.id, engineContainer);
-        }
-
+        if (engine.type === 'db') loadEngineIcon(engine.id, engineContainer);
         container.appendChild(engineContainer);
     });
 
-    // 设置当前激活的引擎
-    const activeEngine = localStorage.getItem('searchEngine') || engines[0].id;
-    setActiveEngine(activeEngine);
+    const activeEngine = localStorage.getItem('searchEngine') || (engines[0] && engines[0].id);
+    if (activeEngine) setActiveEngine(activeEngine);
 }
 
-// 异步加载引擎图标
 async function loadEngineIcon(engineId, container) {
     try {
         const iconData = await getIconFromDB(ENGINE_ICONS_STORE, engineId);
-        if (iconData) {
-            const iconElement = container.querySelector('.engine-btn i');
+        if (iconData && container.isConnected) {
+            const iconElement = container.querySelector('.engine-btn i, .engine-btn img');
             if (iconElement) {
-                // 替换为img元素
                 const img = document.createElement('img');
                 img.src = iconData;
-                img.alt = "Engine icon";
-                img.style = "width:14px;height:14px;margin-right:3px;";
+                img.alt = "";
                 iconElement.replaceWith(img);
             }
         }
@@ -275,101 +298,59 @@ async function loadEngineIcon(engineId, container) {
     }
 }
 
-// 设置当前搜索引擎
 function setActiveEngine(engineId) {
-    // 更新按钮状态
     document.querySelectorAll('.engine-btn').forEach(btn => {
         btn.classList.remove('active');
-        if (btn.dataset.engine === engineId) {
-            btn.classList.add('active');
-        }
+        if (btn.dataset.engine === engineId) btn.classList.add('active');
     });
-
-    // 保存到localStorage
     localStorage.setItem('searchEngine', engineId);
 }
 
-// 执行搜索
 function performSearch() {
     const query = document.getElementById('search-input').value.trim();
     if (!query) return;
 
     const engineId = localStorage.getItem('searchEngine');
     const engines = getSavedEngines();
-    const engine = engines.find(e => e.id === engineId);
+    let engine = engines.find(e => e.id === engineId);
+
+    if (!engine) {
+        engine = engines[0];
+        if (engine) setActiveEngine(engine.id);
+    }
 
     if (!engine) {
         alert('未找到搜索引擎配置');
         return;
     }
 
-    const searchUrl = engine.url.replace('{query}', encodeURIComponent(query));
-    window.open(searchUrl, '_self');
-
-    // 保存搜索历史
+    window.open(engine.url.replace('{query}', encodeURIComponent(query)), '_self');
     saveSearchHistory(query, engine.name);
 }
 
-// 初始化快捷链接
+// ============================================================
+// 快捷链接
+// ============================================================
 function initQuickLinks() {
-    const links = getSavedLinks();
-    renderLinks(links);
+    renderLinks(getSavedLinks());
 }
 
-// 获取保存的链接
 function getSavedLinks() {
-    const savedLinks = localStorage.getItem('quickLinks');
-    if (savedLinks) {
-        return JSON.parse(savedLinks);
+    const raw = localStorage.getItem('quickLinks');
+    if (raw) {
+        try { return JSON.parse(raw); }
+        catch (e) { console.error('解析快捷链接数据失败:', e); return []; }
     }
-
-    // 默认链接
-    return [{
-            id: 'link1',
-            name: 'Xunhaii',
-            url: 'https://xunhaii.com',
-            icon: 'fab fa-x',
-            type: 'fa'
-        },
-        {
-            id: 'link2',
-            name: '知乎',
-            url: 'https://www.zhihu.com',
-            icon: 'fab fa-zhihu',
-            type: 'fa'
-        },
-        {
-            id: 'link3',
-            name: 'B站',
-            url: 'https://www.bilibili.com',
-            icon: 'fab fa-bilibili',
-            type: 'fa'
-        },
-        {
-            id: 'link4',
-            name: '抖音',
-            url: 'https://www.douyin.com',
-            icon: 'fab fa-tiktok',
-            type: 'fa'
-        },
-        {
-            id: 'link5',
-            name: '微博',
-            url: 'https://weibo.com',
-            icon: 'fab fa-weibo',
-            type: 'fa'
-        },
-        {
-            id: 'link6',
-            name: '淘宝',
-            url: 'https://www.taobao.com',
-            icon: 'fas fa-shopping-cart',
-            type: 'fa'
-        }
+    return [
+        { id: 'link1', name: 'Xunhaii', url: 'https://xunhaii.com', icon: 'fab fa-x', type: 'fa' },
+        { id: 'link2', name: '知乎', url: 'https://www.zhihu.com', icon: 'fab fa-zhihu', type: 'fa' },
+        { id: 'link3', name: 'B站', url: 'https://www.bilibili.com', icon: 'fab fa-bilibili', type: 'fa' },
+        { id: 'link4', name: '抖音', url: 'https://www.douyin.com', icon: 'fab fa-tiktok', type: 'fa' },
+        { id: 'link5', name: '微博', url: 'https://weibo.com', icon: 'fab fa-weibo', type: 'fa' },
+        { id: 'link6', name: '淘宝', url: 'https://www.taobao.com', icon: 'fas fa-shopping-cart', type: 'fa' }
     ];
 }
 
-// 渲染链接
 function renderLinks(links) {
     const container = document.getElementById('links-container');
     container.innerHTML = '';
@@ -378,64 +359,79 @@ function renderLinks(links) {
         const card = document.createElement('div');
         card.className = 'link-card';
         card.setAttribute('draggable', 'true');
+        card.setAttribute('tabindex', '0');
         card.dataset.index = index;
         card.dataset.id = link.id;
 
+        const safeName = escapeHtml(link.name);
+
         let iconContent = '';
         if (link.type === 'fa') {
-            iconContent = `<i class="${link.icon}"></i>`;
+            iconContent = `<i class="${sanitizeFaClass(link.icon)}"></i>`;
         } else if (link.type === 'url') {
-            iconContent = `<img src="${link.icon}" alt="${link.name}">`;
+            iconContent = `<img src="${escapeHtml(link.icon)}" alt="" onerror="this.style.display='none'">`;
         } else if (link.type === 'db') {
-            // 对于数据库类型，先显示加载图标
             iconContent = `<i class="fas fa-spinner fa-spin"></i>`;
         }
 
         card.innerHTML = `
-                    <div class="link-icon-container">
-                        <div class="link-icon">
-                            ${iconContent}
-                        </div>
-                    </div>
-                    <div class="link-name">${link.name}</div>
-                    <div class="link-actions">
-                        <button class="action-btn edit-link" data-index="${index}">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="action-btn delete-link" data-index="${index}">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                `;
+            <div class="link-icon-container">
+                <div class="link-icon">
+                    ${iconContent}
+                </div>
+            </div>
+            <div class="link-name">${safeName}</div>
+            <button class="link-edit-btn" data-index="${index}" type="button" aria-label="编辑">
+                <i class="fas fa-edit"></i>
+            </button>
+        `;
 
-        // 添加点击事件打开链接
         card.addEventListener('click', (e) => {
-            if (!e.target.closest('.action-btn') && !e.target.closest('.link-icon-container')) {
+            if (suppressNextClick) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            // 点编辑按钮由委托处理
+            if (e.target.closest('.link-edit-btn')) return;
+            if (card.classList.contains('dragging')) return;
+            if (card.classList.contains('long-press-active')) return;
+
+            // 触屏首次轻触：卡片刚被选中，不打开链接（由 touch 逻辑处理）
+            // 桌面：直接打开链接
+            if (card.dataset.tapBlocked === '1') {
+                delete card.dataset.tapBlocked;
+                return;
+            }
+            window.open(link.url, '_self');
+        });
+
+        // 键盘：按 Enter 打开链接
+        card.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.target.closest('.link-edit-btn')) {
                 window.open(link.url, '_self');
             }
         });
 
-        container.appendChild(card);
+        card.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', index);
+        });
 
-        // 如果是数据库类型，异步加载图标
-        if (link.type === 'db') {
-            loadLinkIcon(link.id, card);
-        }
+        container.appendChild(card);
+        if (link.type === 'db') loadLinkIcon(link.id, card);
     });
 }
 
-// 异步加载链接图标
 async function loadLinkIcon(linkId, card) {
     try {
         const iconData = await getIconFromDB(LINK_ICONS_STORE, linkId);
-        if (iconData) {
+        if (iconData && card.isConnected) {
             const iconContainer = card.querySelector('.link-icon');
             if (iconContainer) {
-                // 移除加载图标，添加实际图标
                 iconContainer.innerHTML = '';
                 const img = document.createElement('img');
                 img.src = iconData;
-                img.alt = "Link icon";
+                img.alt = "";
                 iconContainer.appendChild(img);
             }
         }
@@ -444,144 +440,415 @@ async function loadLinkIcon(linkId, card) {
     }
 }
 
-// 初始化拖放功能
+// ============================================================
+// FLIP 动画工具
+// ============================================================
+function reorderWithFlip(container, selector, doReorder) {
+    const items = [...container.querySelectorAll(selector)];
+    const firsts = new Map();
+    items.forEach(el => firsts.set(el, el.getBoundingClientRect()));
+
+    doReorder();
+
+    items.forEach(el => {
+        const first = firsts.get(el);
+        const last = el.getBoundingClientRect();
+        const dx = first.left - last.left;
+        const dy = first.top - last.top;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+
+        try {
+            el.animate(
+                [
+                    { transform: `translate(${dx}px, ${dy}px)` },
+                    { transform: 'translate(0, 0)' }
+                ],
+                {
+                    duration: 260,
+                    easing: 'cubic-bezier(0.25, 0.8, 0.25, 1)'
+                }
+            );
+        } catch (e) { /* 兼容 */ }
+    });
+}
+
+// ============================================================
+// 拖拽排序：链接
+// ============================================================
 function initDragAndDrop() {
     const container = document.getElementById('links-container');
     let draggedItem = null;
 
-    container.addEventListener('dragstart', function(e) {
-        if (e.target.classList.contains('link-card')) {
+    container.addEventListener('dragstart', function (e) {
+        if (e.target.classList && e.target.classList.contains('link-card')) {
             draggedItem = e.target;
             e.target.classList.add('dragging');
-
-            // 设置拖拽效果
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', e.target.dataset.index);
         }
     });
 
-    container.addEventListener('dragover', function(e) {
+    container.addEventListener('dragover', function (e) {
         e.preventDefault();
-        if (draggedItem) {
-            e.dataTransfer.dropEffect = 'move';
+        if (!draggedItem) return;
+        e.dataTransfer.dropEffect = 'move';
 
-            const afterElement = getDragAfterElement(container, e.clientY);
-            const currentItem = document.querySelector('.dragging');
-
-            if (afterElement) {
-                container.insertBefore(currentItem, afterElement);
-            } else {
-                container.appendChild(currentItem);
+        const afterElement = getDragAfterElement(container, '.link-card', e.clientX, e.clientY);
+        const currentNext = draggedItem.nextElementSibling;
+        if (afterElement === null) {
+            if (currentNext !== null) {
+                reorderWithFlip(container, '.link-card:not(.dragging)', () => {
+                    container.appendChild(draggedItem);
+                });
             }
+        } else if (afterElement !== currentNext) {
+            reorderWithFlip(container, '.link-card:not(.dragging)', () => {
+                container.insertBefore(draggedItem, afterElement);
+            });
         }
     });
 
-    container.addEventListener('dragend', function(e) {
+    container.addEventListener('dragend', function () {
         if (draggedItem) {
             draggedItem.classList.remove('dragging');
             draggedItem = null;
-
-            // 更新链接顺序
             updateLinksOrder();
         }
     });
 
-    // 防止拖拽时触发点击事件
-    container.addEventListener('mousedown', function(e) {
-        if (e.target.classList.contains('link-card')) {
-            e.target.style.cursor = 'grabbing';
-        }
-    });
-
-    container.addEventListener('mouseup', function(e) {
-        if (e.target.classList.contains('link-card')) {
-            e.target.style.cursor = 'move';
-        }
-    });
+    attachTouchHandlers(container, 'links');
 }
 
-// 获取拖拽后的位置元素
-function getDragAfterElement(container, y) {
-    const draggableElements = [...container.querySelectorAll('.link-card:not(.dragging)')];
-
-    return draggableElements.reduce((closest, child) => {
-        const box = child.getBoundingClientRect();
-        const offset = y - box.top - box.height / 2;
-
-        if (offset < 0 && offset > closest.offset) {
-            return {
-                offset: offset,
-                element: child
-            };
-        } else {
-            return closest;
-        }
-    }, {
-        offset: Number.NEGATIVE_INFINITY
-    }).element;
-}
-
-// 更新链接顺序
 function updateLinksOrder() {
     const container = document.getElementById('links-container');
     const links = getSavedLinks();
     const newLinks = [];
 
-    container.querySelectorAll('.link-card').forEach((card, index) => {
-        const originalIndex = parseInt(card.dataset.index);
-        newLinks.push(links[originalIndex]);
-        card.dataset.index = index;
+    container.querySelectorAll('.link-card').forEach((card) => {
+        const originalIndex = parseInt(card.dataset.index, 10);
+        if (!isNaN(originalIndex) && links[originalIndex]) newLinks.push(links[originalIndex]);
     });
 
-    // 保存新顺序
+    if (newLinks.length !== links.length) {
+        console.warn('拖拽排序后数据长度不一致，已取消本次排序');
+        renderLinks(links);
+        return;
+    }
+
     localStorage.setItem('quickLinks', JSON.stringify(newLinks));
+    renderLinks(newLinks);
 }
 
-// 初始化历史记录
+// ============================================================
+// 拖拽排序：引擎
+// ============================================================
+function initEngineDragAndDrop() {
+    const container = document.getElementById('engine-container');
+    let draggedItem = null;
+
+    container.addEventListener('dragstart', function (e) {
+        if (e.target.classList && e.target.classList.contains('engine-btn-container')) {
+            if (e.target.closest('.engine-edit-btn')) {
+                e.preventDefault();
+                return;
+            }
+            draggedItem = e.target;
+            e.target.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', e.target.dataset.engineId || '');
+        }
+    });
+
+    container.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        if (!draggedItem) return;
+        e.dataTransfer.dropEffect = 'move';
+
+        const afterElement = getDragAfterElement(container, '.engine-btn-container', e.clientX, e.clientY);
+        const currentNext = draggedItem.nextElementSibling;
+        if (afterElement === null) {
+            if (currentNext !== null) {
+                reorderWithFlip(container, '.engine-btn-container:not(.dragging)', () => {
+                    container.appendChild(draggedItem);
+                });
+            }
+        } else if (afterElement !== currentNext) {
+            reorderWithFlip(container, '.engine-btn-container:not(.dragging)', () => {
+                container.insertBefore(draggedItem, afterElement);
+            });
+        }
+    });
+
+    container.addEventListener('dragend', function () {
+        if (draggedItem) {
+            draggedItem.classList.remove('dragging');
+            draggedItem = null;
+            updateEnginesOrder();
+        }
+    });
+
+    attachTouchHandlers(container, 'engines');
+}
+
+function updateEnginesOrder() {
+    const container = document.getElementById('engine-container');
+    const engines = getSavedEngines();
+    const newOrder = [];
+
+    container.querySelectorAll('.engine-btn-container').forEach(el => {
+        const id = el.dataset.engineId;
+        const engine = engines.find(e => e.id === id);
+        if (engine) newOrder.push(engine);
+    });
+
+    if (newOrder.length !== engines.length) {
+        renderSearchEngines(engines);
+        return;
+    }
+
+    localStorage.setItem('searchEngines', JSON.stringify(newOrder));
+}
+
+// ============================================================
+// 触屏手势：轻触选中 / 再次轻触打开 / 长按拖拽
+// ============================================================
+function attachTouchHandlers(container, kind) {
+    const selector = kind === 'links' ? '.link-card' : '.engine-btn-container';
+    const editBtnSel = kind === 'links' ? '.link-edit-btn' : '.engine-edit-btn';
+
+    container.addEventListener('touchstart', function (e) {
+        const target = e.target.closest(selector);
+        if (!target) return;
+
+        // 点编辑按钮交给原生 click 处理
+        if (e.target.closest(editBtnSel)) return;
+
+        // 判断是不是"再次轻触已选中的卡片"
+        const isAlreadyActive = target.classList.contains('touch-active');
+        touchState.shouldOpenOnTap = isAlreadyActive;
+
+        // 清除其他卡片的选中状态
+        container.querySelectorAll('.touch-active').forEach(el => {
+            if (el !== target) el.classList.remove('touch-active');
+        });
+        // 保证当前卡片选中（即使之前已选中也重置，避免误判）
+        target.classList.add('touch-active');
+
+        // 首次轻触：阻止后续 click 打开链接（用于链接卡片）
+        if (!isAlreadyActive && kind === 'links') {
+            target.dataset.tapBlocked = '1';
+        } else {
+            delete target.dataset.tapBlocked;
+        }
+
+        if (touchState.timer) clearTimeout(touchState.timer);
+
+        const touch = e.touches[0];
+        touchState.card = target;
+        touchState.container = kind;
+        touchState.started = false;
+        touchState.dragging = false;
+        touchState.startX = touch.clientX;
+        touchState.startY = touch.clientY;
+
+        touchState.timer = setTimeout(() => {
+            if (!touchState.card) return;
+            touchState.started = true;
+            touchState.card.classList.add('long-press-active');
+            if (navigator.vibrate) navigator.vibrate(20);
+        }, LONG_PRESS_MS);
+    }, { passive: true });
+
+    container.addEventListener('touchmove', function (e) {
+        if (!touchState.card || touchState.container !== kind) return;
+
+        const touch = e.touches[0];
+        const dx = Math.abs(touch.clientX - touchState.startX);
+        const dy = Math.abs(touch.clientY - touchState.startY);
+
+        // 长按激活前移动超阈值 → 取消长按，也取消 touch-active（视为滚动）
+        if (!touchState.started) {
+            if (dx > LONG_PRESS_MOVE_CANCEL || dy > LONG_PRESS_MOVE_CANCEL) {
+                if (touchState.timer) clearTimeout(touchState.timer);
+                touchState.timer = null;
+                if (touchState.card) {
+                    touchState.card.classList.remove('touch-active');
+                    delete touchState.card.dataset.tapBlocked;
+                }
+                touchState.card = null;
+                touchState.container = null;
+            }
+            return;
+        }
+
+        // 长按激活后移动超阈值 → 进入拖拽
+        if (!touchState.dragging && (dx > DRAG_START_THRESHOLD || dy > DRAG_START_THRESHOLD)) {
+            touchState.dragging = true;
+            touchState.card.classList.remove('long-press-active');
+            touchState.card.classList.add('dragging');
+        }
+
+        if (touchState.dragging) {
+            e.preventDefault();
+            const item = touchState.card;
+            const afterElement = getDragAfterElement(container, selector, touch.clientX, touch.clientY);
+            const currentNext = item.nextElementSibling;
+            const flipSelector = selector + ':not(.dragging)';
+
+            if (afterElement === null) {
+                if (currentNext !== null) {
+                    reorderWithFlip(container, flipSelector, () => {
+                        container.appendChild(item);
+                    });
+                }
+            } else if (afterElement !== currentNext) {
+                reorderWithFlip(container, flipSelector, () => {
+                    container.insertBefore(item, afterElement);
+                });
+            }
+        }
+    }, { passive: false });
+
+    container.addEventListener('touchend', function () {
+        if (touchState.container !== kind) return;
+        if (touchState.timer) clearTimeout(touchState.timer);
+
+        const card = touchState.card;
+        const wasDragging = touchState.dragging;
+        const wasStarted = touchState.started;
+        const shouldOpenOnTap = touchState.shouldOpenOnTap;
+
+        touchState = {
+            card: null, container: null, timer: null,
+            started: false, dragging: false,
+            startX: 0, startY: 0, shouldOpenOnTap: false
+        };
+
+        if (!card) return;
+        card.classList.remove('long-press-active');
+
+        if (wasDragging) {
+            card.classList.remove('dragging');
+            if (kind === 'links') updateLinksOrder();
+            else updateEnginesOrder();
+            suppressNextClick = true;
+            setTimeout(() => { suppressNextClick = false; }, 350);
+        } else if (wasStarted) {
+            // 长按未移动：保持选中即可（用户点编辑按钮）
+            suppressNextClick = true;
+            setTimeout(() => { suppressNextClick = false; }, 350);
+        } else if (shouldOpenOnTap) {
+            // 再次轻触：允许 click 传递（打开链接）
+            suppressNextClick = false;
+        } else {
+            // 首次轻触：阻止 click，防止打开链接
+            suppressNextClick = true;
+            setTimeout(() => { suppressNextClick = false; }, 350);
+        }
+    });
+
+    container.addEventListener('touchcancel', function () {
+        if (touchState.container !== kind) return;
+        if (touchState.timer) clearTimeout(touchState.timer);
+        if (touchState.card) {
+            touchState.card.classList.remove('long-press-active', 'dragging', 'touch-active');
+            delete touchState.card.dataset.tapBlocked;
+        }
+        touchState = {
+            card: null, container: null, timer: null,
+            started: false, dragging: false,
+            startX: 0, startY: 0, shouldOpenOnTap: false
+        };
+    });
+}
+
+// ============================================================
+// 网格感知的拖拽插入点
+// ============================================================
+function getDragAfterElement(container, selector, x, y) {
+    const items = [...container.querySelectorAll(selector + ':not(.dragging)')];
+    if (items.length === 0) return null;
+
+    const rowsMap = [];
+    items.forEach(item => {
+        const box = item.getBoundingClientRect();
+        let foundRow = null;
+        for (const row of rowsMap) {
+            if (Math.abs(row.top - box.top) < box.height / 2) {
+                foundRow = row;
+                break;
+            }
+        }
+        if (foundRow) {
+            foundRow.items.push({ el: item, box });
+            foundRow.bottom = Math.max(foundRow.bottom, box.bottom);
+        } else {
+            rowsMap.push({ top: box.top, bottom: box.bottom, items: [{ el: item, box }] });
+        }
+    });
+
+    rowsMap.sort((a, b) => a.top - b.top);
+
+    let targetRow = rowsMap[0];
+    let minDist = Infinity;
+    for (const row of rowsMap) {
+        if (y >= row.top - 5 && y <= row.bottom + 5) {
+            targetRow = row;
+            minDist = 0;
+            break;
+        }
+        const dist = y < row.top ? row.top - y : y - row.bottom;
+        if (dist < minDist) {
+            minDist = dist;
+            targetRow = row;
+        }
+    }
+
+    targetRow.items.sort((a, b) => a.box.left - b.box.left);
+
+    for (const item of targetRow.items) {
+        const centerX = item.box.left + item.box.width / 2;
+        if (x < centerX) return item.el;
+    }
+
+    const rowIndex = rowsMap.indexOf(targetRow);
+    if (rowIndex < rowsMap.length - 1) {
+        const nextRow = rowsMap[rowIndex + 1];
+        nextRow.items.sort((a, b) => a.box.left - b.box.left);
+        return nextRow.items[0].el;
+    }
+
+    return null;
+}
+
+// ============================================================
+// 搜索历史
+// ============================================================
 function initSearchHistory() {
-    const history = getSearchHistory();
-    renderSearchHistory(history);
+    renderSearchHistory(getSearchHistory());
 }
 
-// 获取搜索历史
 function getSearchHistory() {
-    const savedHistory = localStorage.getItem('searchHistory');
-    if (savedHistory) {
-        return JSON.parse(savedHistory);
+    const raw = localStorage.getItem('searchHistory');
+    if (raw) {
+        try { return JSON.parse(raw); }
+        catch (e) { return []; }
     }
     return [];
 }
 
-// 保存搜索历史
 function saveSearchHistory(query, engineName) {
     const history = getSearchHistory();
-
-    // 避免重复记录
     const existingIndex = history.findIndex(item => item.query === query && item.engine === engineName);
-    if (existingIndex !== -1) {
-        history.splice(existingIndex, 1);
-    }
+    if (existingIndex !== -1) history.splice(existingIndex, 1);
 
-    // 添加新记录
-    history.unshift({
-        query: query,
-        engine: engineName,
-        timestamp: new Date().toISOString()
-    });
+    history.unshift({ query, engine: engineName, timestamp: new Date().toISOString() });
+    if (history.length > 10) history.pop();
 
-    // 只保留最近的10条记录
-    if (history.length > 10) {
-        history.pop();
-    }
-
-    // 保存到localStorage
     localStorage.setItem('searchHistory', JSON.stringify(history));
-
-    // 重新渲染
     renderSearchHistory(history);
 }
 
-// 渲染搜索历史
 function renderSearchHistory(history) {
     const container = document.getElementById('history-container');
     container.innerHTML = '';
@@ -595,17 +862,17 @@ function renderSearchHistory(history) {
         const historyItem = document.createElement('div');
         historyItem.className = 'history-item';
 
-        // 安全渲染：使用textContent代替innerHTML
         const contentDiv = document.createElement('div');
         contentDiv.className = 'history-content';
 
         const queryDiv = document.createElement('div');
         queryDiv.className = 'history-query';
-        queryDiv.textContent = item.query; // 安全渲染
+        queryDiv.textContent = item.query;
+        queryDiv.title = item.query;
 
         const engineDiv = document.createElement('div');
         engineDiv.className = 'history-engine';
-        engineDiv.textContent = `使用 ${item.engine} 搜索`; // 安全渲染
+        engineDiv.textContent = `使用 ${item.engine} 搜索`;
 
         contentDiv.appendChild(queryDiv);
         contentDiv.appendChild(engineDiv);
@@ -613,12 +880,13 @@ function renderSearchHistory(history) {
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'delete-history';
         deleteBtn.dataset.index = index;
+        deleteBtn.type = 'button';
+        deleteBtn.setAttribute('aria-label', '删除记录');
         deleteBtn.innerHTML = '<i class="fas fa-times"></i>';
 
         historyItem.appendChild(contentDiv);
         historyItem.appendChild(deleteBtn);
 
-        // 点击事件 - 重新搜索
         historyItem.addEventListener('click', (e) => {
             if (!e.target.closest('.delete-history')) {
                 document.getElementById('search-input').value = item.query;
@@ -626,7 +894,6 @@ function renderSearchHistory(history) {
             }
         });
 
-        // 删除按钮
         deleteBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             deleteSearchHistory(index);
@@ -636,7 +903,6 @@ function renderSearchHistory(history) {
     });
 }
 
-// 删除单条搜索历史
 function deleteSearchHistory(index) {
     const history = getSearchHistory();
     history.splice(index, 1);
@@ -644,282 +910,753 @@ function deleteSearchHistory(index) {
     renderSearchHistory(history);
 }
 
-// 清空搜索历史
 function clearSearchHistory() {
     localStorage.removeItem('searchHistory');
     renderSearchHistory([]);
 }
 
-// 初始化主题
+// ============================================================
+// 主题
+// ============================================================
 function initTheme() {
-    // 检查是否跟随系统主题
     const followSystem = localStorage.getItem('followSystemTheme') !== 'false';
     document.getElementById('system-theme-toggle').checked = followSystem;
 
-    // 获取系统主题偏好
     const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-    // 获取用户保存的主题设置
     const savedTheme = localStorage.getItem('theme');
 
-    // 设置主题
-    if (followSystem) {
-        // 跟随系统
-        if (systemPrefersDark) {
-            document.body.classList.add('dark-mode');
-            document.getElementById('theme-toggle').innerHTML = '<i class="fas fa-sun"></i>';
-        } else {
-            document.body.classList.remove('dark-mode');
-            document.getElementById('theme-toggle').innerHTML = '<i class="fas fa-moon"></i>';
-        }
-    } else {
-        // 使用用户选择的主题
-        if (savedTheme === 'dark') {
-            document.body.classList.add('dark-mode');
-            document.getElementById('theme-toggle').innerHTML = '<i class="fas fa-sun"></i>';
-        } else {
-            document.body.classList.remove('dark-mode');
-            document.getElementById('theme-toggle').innerHTML = '<i class="fas fa-moon"></i>';
-        }
-    }
+    if (followSystem) applyTheme(systemPrefersDark);
+    else applyTheme(savedTheme === 'dark');
 
-    // 监听系统主题变化
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
-        if (document.getElementById('system-theme-toggle').checked) {
-            if (e.matches) {
-                document.body.classList.add('dark-mode');
-                document.getElementById('theme-toggle').innerHTML = '<i class="fas fa-sun"></i>';
-            } else {
-                document.body.classList.remove('dark-mode');
-                document.getElementById('theme-toggle').innerHTML = '<i class="fas fa-moon"></i>';
-            }
-            setThemeColor();
-        }
+        if (document.getElementById('system-theme-toggle').checked) applyTheme(e.matches);
     });
-    // 设置主题色
+
     setThemeColor();
 }
 
-// 切换主题
+function applyTheme(isDark) {
+    if (isDark) {
+        document.body.classList.add('dark-mode');
+        document.getElementById('theme-toggle').innerHTML = '<i class="fas fa-sun"></i>';
+    } else {
+        document.body.classList.remove('dark-mode');
+        document.getElementById('theme-toggle').innerHTML = '<i class="fas fa-moon"></i>';
+    }
+}
+
 function toggleTheme() {
     const followSystem = document.getElementById('system-theme-toggle').checked;
-
     if (followSystem) {
-        // 如果当前是跟随系统，则切换到手动模式
         document.getElementById('system-theme-toggle').checked = false;
         localStorage.setItem('followSystemTheme', 'false');
     }
 
-    // 切换主题
     if (document.body.classList.contains('dark-mode')) {
-        document.body.classList.remove('dark-mode');
-        document.getElementById('theme-toggle').innerHTML = '<i class="fas fa-moon"></i>';
+        applyTheme(false);
         localStorage.setItem('theme', 'light');
     } else {
-        document.body.classList.add('dark-mode');
-        document.getElementById('theme-toggle').innerHTML = '<i class="fas fa-sun"></i>';
+        applyTheme(true);
         localStorage.setItem('theme', 'dark');
     }
-    // 更新主题色
     setThemeColor();
 }
 
-// 切换是否跟随系统主题
 function toggleFollowSystem() {
-    const followSystem = document.getElementById('system-theme-toggle').checked;
-    localStorage.setItem('followSystemTheme', followSystem);
-
-    // 更新主题
+    localStorage.setItem('followSystemTheme', document.getElementById('system-theme-toggle').checked);
     initTheme();
 }
 
-// 重置所有设置
-async function resetAllSettings() {
-    if (confirm('确定要重置所有设置吗？这将清除所有自定义设置并恢复默认状态。')) {
-        // 清除所有本地存储
-        localStorage.removeItem('searchEngines');
-        localStorage.removeItem('searchEngine');
-        localStorage.removeItem('quickLinks');
-        localStorage.removeItem('searchHistory');
-        localStorage.removeItem('theme');
-        localStorage.removeItem('followSystemTheme');
+function setThemeColor() {
+    const themeColor = document.getElementById('theme-color');
+    if (!themeColor) return;
+    themeColor.content = document.body.classList.contains('dark-mode') ? '#1a1a2e' : '#f5f7fa';
+}
 
-        // 清除 IndexedDB 数据
-        try {
-            const transaction = db.transaction([LINK_ICONS_STORE, ENGINE_ICONS_STORE], "readwrite");
-            const linkStore = transaction.objectStore(LINK_ICONS_STORE);
-            const engineStore = transaction.objectStore(ENGINE_ICONS_STORE);
+// ============================================================
+// 高斯模糊开关
+// ============================================================
+function initBlurToggle() {
+    const enabled = localStorage.getItem('blurEnabled') !== 'false';
+    const toggle = document.getElementById('blur-toggle');
+    if (toggle) toggle.checked = enabled;
+    document.body.classList.toggle('no-blur', !enabled);
+}
 
-            linkStore.clear();
-            engineStore.clear();
-        } catch (error) {
-            console.error("重置 IndexedDB 失败:", error);
-        }
-
-        // 重新初始化页面
-        initSearchEngines();
-        initQuickLinks();
-        initSearchHistory();
-        initTheme();
-
-        // 关闭设置面板
-        document.getElementById('settings-panel').classList.remove('open');
-
-        alert('所有设置已重置成功！');
+// ============================================================
+// 自定义背景
+// ============================================================
+function getBgConfig() {
+    try {
+        const raw = localStorage.getItem('bgConfig');
+        return raw ? JSON.parse(raw) : { type: 'none' };
+    } catch {
+        return { type: 'none' };
     }
 }
 
-// 设置事件监听器
+function saveBgConfig(config) {
+    localStorage.setItem('bgConfig', JSON.stringify(config));
+}
+
+function applyBgEffects(effects) {
+    const e = Object.assign({}, DEFAULT_EFFECTS, effects || {});
+    const root = document.documentElement;
+    root.style.setProperty('--bg-blur', e.blur + 'px');
+    root.style.setProperty('--bg-brightness', e.brightness + '%');
+    root.style.setProperty('--bg-saturation', e.saturation + '%');
+    root.style.setProperty('--bg-overlay', (e.overlay / 100).toString());
+}
+
+async function loadBackground() {
+    const config = getBgConfig();
+    document.body.classList.remove('has-custom-bg');
+
+    applyBgEffects(config.effects);
+
+    if (!config || config.type === 'none') {
+        document.documentElement.style.removeProperty('--bg-image');
+        return;
+    }
+
+    if (config.type === 'url') {
+        if (config.value) {
+            document.documentElement.style.setProperty('--bg-image', cssUrl(config.value));
+            document.body.classList.add('has-custom-bg');
+        }
+        return;
+    }
+
+    if (config.type === 'db') {
+        try {
+            const data = await getIconFromDB(BG_STORE, BG_KEY);
+            if (data) {
+                document.documentElement.style.setProperty('--bg-image', cssUrl(data));
+                document.body.classList.add('has-custom-bg');
+            } else {
+                saveBgConfig({ type: 'none', effects: config.effects });
+                document.documentElement.style.removeProperty('--bg-image');
+            }
+        } catch (err) {
+            console.error('加载背景失败:', err);
+        }
+    }
+}
+
+function openBgModal() {
+    const modal = document.getElementById('bg-modal');
+    const config = getBgConfig();
+
+    document.querySelectorAll('#bg-modal .icon-option').forEach(o => o.classList.remove('active'));
+    document.querySelectorAll('#bg-modal .icon-selector').forEach(el => el.style.display = 'none');
+    document.getElementById('bg-url-input').value = '';
+    document.getElementById('bg-image-upload').value = '';
+    document.getElementById('bg-upload-hint').style.display = 'none';
+
+    bgKeepExisting = false;
+    currentBgType = config.type === 'db' ? 'upload' : (config.type || 'none');
+    currentBgValue = config.value || '';
+
+    previewEffects = Object.assign({}, DEFAULT_EFFECTS, config.effects || {});
+    setSlidersFromEffects(previewEffects);
+
+    const previewImage = document.getElementById('bg-preview-image');
+
+    if (currentBgType === 'url') {
+        document.getElementById('bg-url-option').classList.add('active');
+        document.getElementById('bg-url-container').style.display = 'block';
+        document.getElementById('bg-url-input').value = currentBgValue;
+        previewImage.style.backgroundImage = currentBgValue ? cssUrl(currentBgValue) : cssUrl(DEFAULT_BG_URL);
+    } else if (currentBgType === 'upload') {
+        document.getElementById('bg-upload-option').classList.add('active');
+        document.getElementById('bg-upload-container').style.display = 'block';
+        document.getElementById('bg-upload-hint').style.display = 'block';
+        bgKeepExisting = true;
+        getIconFromDB(BG_STORE, BG_KEY).then(data => {
+            previewImage.style.backgroundImage = cssUrl(data || DEFAULT_BG_URL);
+        }).catch(() => {
+            previewImage.style.backgroundImage = cssUrl(DEFAULT_BG_URL);
+        });
+    } else {
+        document.getElementById('bg-none-option').classList.add('active');
+        previewImage.style.backgroundImage = cssUrl(DEFAULT_BG_URL);
+    }
+
+    updateBgPreviewEffects();
+    updateAllSliderProgress();
+
+    modal.classList.add('show');
+    modal.style.display = 'flex';
+}
+
+function closeBgModal() {
+    const modal = document.getElementById('bg-modal');
+    modal.classList.remove('show');
+    modal.style.display = 'none';
+}
+
+function setSlidersFromEffects(effects) {
+    document.getElementById('bg-blur').value = effects.blur;
+    document.getElementById('bg-brightness').value = effects.brightness;
+    document.getElementById('bg-saturation').value = effects.saturation;
+    document.getElementById('bg-overlay').value = effects.overlay;
+    updateSliderLabels();
+}
+
+function updateSliderLabels() {
+    document.getElementById('bg-blur-value').textContent = previewEffects.blur + 'px';
+    document.getElementById('bg-brightness-value').textContent = previewEffects.brightness + '%';
+    document.getElementById('bg-saturation-value').textContent = previewEffects.saturation + '%';
+    document.getElementById('bg-overlay-value').textContent = previewEffects.overlay + '%';
+}
+
+function updateSliderProgress(input) {
+    const min = parseFloat(input.min);
+    const max = parseFloat(input.max);
+    const val = parseFloat(input.value);
+    const pct = ((val - min) / (max - min)) * 100;
+    input.style.setProperty('--progress', pct + '%');
+}
+
+function updateAllSliderProgress() {
+    ['bg-blur', 'bg-brightness', 'bg-saturation', 'bg-overlay'].forEach(id => {
+        updateSliderProgress(document.getElementById(id));
+    });
+}
+
+function updateBgPreviewEffects() {
+    const image = document.getElementById('bg-preview-image');
+    const overlay = document.getElementById('bg-preview-overlay');
+    if (!image || !overlay) return;
+
+    image.style.filter = `blur(${previewEffects.blur}px) brightness(${previewEffects.brightness}%) saturate(${previewEffects.saturation}%)`;
+    overlay.style.background = `rgba(0, 0, 0, ${previewEffects.overlay / 100})`;
+}
+
+function updateBgPreviewFromUrl() {
+    const url = document.getElementById('bg-url-input').value.trim();
+    const previewImage = document.getElementById('bg-preview-image');
+    previewImage.style.backgroundImage = url ? cssUrl(url) : cssUrl(DEFAULT_BG_URL);
+}
+
+async function saveBg() {
+    if (currentBgType === 'none') {
+        try { await deleteIconFromDB(BG_STORE, BG_KEY); } catch (e) {}
+        saveBgConfig({ type: 'none', effects: { ...previewEffects } });
+        await loadBackground();
+        closeBgModal();
+        return;
+    }
+
+    if (currentBgType === 'url') {
+        const url = document.getElementById('bg-url-input').value.trim();
+        if (!url) { alert('请输入图片链接'); return; }
+        try { new URL(url); } catch { alert('请输入有效的图片URL'); return; }
+
+        try { await deleteIconFromDB(BG_STORE, BG_KEY); } catch (e) {}
+
+        saveBgConfig({ type: 'url', value: url, effects: { ...previewEffects } });
+        await loadBackground();
+        closeBgModal();
+        return;
+    }
+
+    if (currentBgType === 'upload') {
+        const fileInput = document.getElementById('bg-image-upload');
+        if (fileInput.files && fileInput.files[0]) {
+            const file = fileInput.files[0];
+            if (!file.type.match('image.*')) { alert('请选择图片文件'); return; }
+            if (file.size > 5 * 1024 * 1024) { alert('图片文件过大，请选择小于 5MB 的图片'); return; }
+
+            const reader = new FileReader();
+            reader.onload = async function (ev) {
+                try {
+                    await saveIconToDB(BG_STORE, BG_KEY, ev.target.result);
+                    saveBgConfig({ type: 'db', effects: { ...previewEffects } });
+                    await loadBackground();
+                    closeBgModal();
+                } catch (e) {
+                    console.error(e);
+                    alert('保存背景图片失败，请重试');
+                }
+            };
+            reader.onerror = () => alert('读取文件失败');
+            reader.readAsDataURL(file);
+            return;
+        } else if (bgKeepExisting) {
+            saveBgConfig({ type: 'db', effects: { ...previewEffects } });
+            await loadBackground();
+            closeBgModal();
+            return;
+        } else {
+            alert('请选择图片文件');
+            return;
+        }
+    }
+}
+
+// ============================================================
+// 配置导出 / 导入
+// ============================================================
+const CONFIG_KEYS = [
+    'searchEngines', 'searchEngine', 'quickLinks', 'searchHistory',
+    'theme', 'followSystemTheme', 'blurEnabled', 'bgConfig',
+    'linksTipDismissed'
+];
+
+function getAllFromStore(storeName) {
+    return new Promise((resolve, reject) => {
+        if (!db) return resolve([]);
+        try {
+            const tx = db.transaction([storeName], 'readonly');
+            const store = tx.objectStore(storeName);
+            const req = store.getAll();
+            req.onsuccess = () => resolve(req.result || []);
+            req.onerror = (e) => reject(e.target.error);
+        } catch (e) {
+            reject(e);
+        }
+    });
+}
+
+async function exportConfig() {
+    const data = {
+        app: 'XunhaiiStartPage',
+        version: CONFIG_VERSION,
+        exportedAt: new Date().toISOString(),
+        localStorage: {},
+        indexedDB: {
+            linkIcons: [],
+            engineIcons: [],
+            backgroundImage: []
+        }
+    };
+
+    CONFIG_KEYS.forEach(key => {
+        const val = localStorage.getItem(key);
+        if (val !== null) data.localStorage[key] = val;
+    });
+
+    try {
+        data.indexedDB.linkIcons = await getAllFromStore(LINK_ICONS_STORE);
+        data.indexedDB.engineIcons = await getAllFromStore(ENGINE_ICONS_STORE);
+        data.indexedDB.backgroundImage = await getAllFromStore(BG_STORE);
+    } catch (e) {
+        console.error('导出 IndexedDB 数据失败:', e);
+    }
+
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    a.href = url;
+    a.download = `xunhaii-startpage-config-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+    document.getElementById('settings-panel').classList.remove('open');
+}
+
+function clearStore(storeName) {
+    return new Promise((resolve, reject) => {
+        if (!db) return resolve();
+        try {
+            const tx = db.transaction([storeName], 'readwrite');
+            const store = tx.objectStore(storeName);
+            store.clear();
+            tx.oncomplete = () => resolve();
+            tx.onerror = (e) => reject(e.target.error);
+            tx.onabort = (e) => reject(e.target.error);
+        } catch (e) {
+            reject(e);
+        }
+    });
+}
+
+function bulkPutToStore(storeName, items) {
+    return new Promise((resolve, reject) => {
+        if (!db || !Array.isArray(items) || items.length === 0) return resolve();
+        try {
+            const tx = db.transaction([storeName], 'readwrite');
+            const store = tx.objectStore(storeName);
+            items.forEach(item => {
+                if (item && item.id !== undefined) store.put(item);
+            });
+            tx.oncomplete = () => resolve();
+            tx.onerror = (e) => reject(e.target.error);
+            tx.onabort = (e) => reject(e.target.error);
+        } catch (e) {
+            reject(e);
+        }
+    });
+}
+
+async function importConfigFromFile(file) {
+    let text;
+    try {
+        text = await file.text();
+    } catch (e) {
+        alert('无法读取文件');
+        return;
+    }
+
+    let data;
+    try {
+        data = JSON.parse(text);
+    } catch (e) {
+        alert('文件格式错误，无法解析 JSON');
+        return;
+    }
+
+    if (!data || typeof data !== 'object' || data.app !== 'XunhaiiStartPage') {
+        if (!confirm('该文件可能不是本起始页的配置文件，仍然继续导入吗？')) return;
+    }
+
+    if (!confirm('导入将覆盖当前所有配置（包括快捷方式、搜索引擎、背景图等），确定继续吗？')) return;
+
+    if (data.localStorage && typeof data.localStorage === 'object') {
+        CONFIG_KEYS.forEach(key => {
+            if (Object.prototype.hasOwnProperty.call(data.localStorage, key)) {
+                if (typeof data.localStorage[key] === 'string') {
+                    localStorage.setItem(key, data.localStorage[key]);
+                }
+            } else {
+                localStorage.removeItem(key);
+            }
+        });
+    }
+
+    try {
+        const stores = [LINK_ICONS_STORE, ENGINE_ICONS_STORE, BG_STORE];
+        for (const s of stores) await clearStore(s);
+
+        if (data.indexedDB) {
+            await bulkPutToStore(LINK_ICONS_STORE, data.indexedDB.linkIcons || []);
+            await bulkPutToStore(ENGINE_ICONS_STORE, data.indexedDB.engineIcons || []);
+            await bulkPutToStore(BG_STORE, data.indexedDB.backgroundImage || []);
+        }
+    } catch (e) {
+        console.error('导入 IndexedDB 失败:', e);
+    }
+
+    alert('导入成功，页面即将刷新以应用配置。');
+    setTimeout(() => location.reload(), 400);
+}
+
+// ============================================================
+// 重置
+// ============================================================
+async function resetAllSettings() {
+    if (!confirm('确定要重置所有设置吗？这将清除所有自定义设置并恢复默认状态。')) return;
+
+    CONFIG_KEYS.forEach(k => localStorage.removeItem(k));
+
+    try {
+        await new Promise((resolve, reject) => {
+            if (!db) return resolve();
+            const transaction = db.transaction([LINK_ICONS_STORE, ENGINE_ICONS_STORE, BG_STORE], "readwrite");
+            transaction.objectStore(LINK_ICONS_STORE).clear();
+            transaction.objectStore(ENGINE_ICONS_STORE).clear();
+            transaction.objectStore(BG_STORE).clear();
+            transaction.oncomplete = () => resolve();
+            transaction.onerror = (e) => reject(e.target.error);
+            transaction.onabort = (e) => reject(e.target.error);
+        });
+    } catch (error) {
+        console.error("重置 IndexedDB 失败:", error);
+    }
+
+    document.body.classList.remove('has-custom-bg', 'no-blur');
+    const root = document.documentElement;
+    root.style.removeProperty('--bg-image');
+    root.style.removeProperty('--bg-blur');
+    root.style.removeProperty('--bg-brightness');
+    root.style.removeProperty('--bg-saturation');
+    root.style.removeProperty('--bg-overlay');
+
+    initSearchEngines();
+    initQuickLinks();
+    initSearchHistory();
+    initTheme();
+    initBlurToggle();
+    await loadBackground();
+    initLinksTip();
+
+    document.getElementById('settings-panel').classList.remove('open');
+    alert('所有设置已重置成功！');
+}
+
+// ============================================================
+// 事件监听
+// ============================================================
 function setupEventListeners() {
-    // 搜索引擎切换
     document.getElementById('engine-container').addEventListener('click', (e) => {
-        if (e.target.closest('.engine-btn')) {
-            const btn = e.target.closest('.engine-btn');
-            setActiveEngine(btn.dataset.engine);
+        if (suppressNextClick) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
         }
+        const editBtn = e.target.closest('.engine-edit-btn');
+        if (editBtn) { openEngineModal(editBtn.dataset.engine); return; }
+        const btn = e.target.closest('.engine-btn');
+        if (btn) setActiveEngine(btn.dataset.engine);
+    });
 
-        if (e.target.closest('.engine-edit-btn')) {
-            const btn = e.target.closest('.engine-edit-btn');
-            const engineId = btn.dataset.engine;
-            openEngineModal(engineId);
+    // 链接编辑按钮
+    document.getElementById('links-container').addEventListener('click', (e) => {
+        if (suppressNextClick) return;
+        const editBtn = e.target.closest('.link-edit-btn');
+        if (editBtn) {
+            e.stopPropagation();
+            e.preventDefault();
+            openLinkModal(parseInt(editBtn.dataset.index, 10));
         }
     });
 
-    // 搜索按钮
     document.getElementById('search-btn').addEventListener('click', performSearch);
-
-    // 回车键搜索
     document.getElementById('search-input').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            performSearch();
-        }
+        if (e.key === 'Enter') performSearch();
     });
 
-    // 添加快捷方式按钮
-    document.getElementById('add-link-btn').addEventListener('click', () => {
-        openLinkModal();
-    });
+    document.getElementById('add-link-btn').addEventListener('click', () => openLinkModal());
+    document.getElementById('add-engine-btn').addEventListener('click', () => openEngineModal());
 
-    // 添加搜索引擎按钮
-    document.getElementById('add-engine-btn').addEventListener('click', () => {
-        openEngineModal();
-    });
-
-    // 关闭模态框
     document.getElementById('close-link-modal').addEventListener('click', closeLinkModal);
     document.getElementById('cancel-link-btn').addEventListener('click', closeLinkModal);
     document.getElementById('close-engine-modal').addEventListener('click', closeEngineModal);
     document.getElementById('cancel-engine-btn').addEventListener('click', closeEngineModal);
 
-    // 保存链接
     document.getElementById('save-link-btn').addEventListener('click', saveLink);
-
-    // 保存搜索引擎
     document.getElementById('save-engine-btn').addEventListener('click', saveEngine);
-
-    // 删除搜索引擎
     document.getElementById('delete-engine-btn').addEventListener('click', deleteEngine);
 
-    // 使用事件委托处理编辑和删除链接
-    document.getElementById('links-container').addEventListener('click', (e) => {
-        if (e.target.closest('.edit-link')) {
-            const index = e.target.closest('.edit-link').dataset.index;
-            openLinkModal(index);
-        }
+    document.getElementById('delete-link-btn').addEventListener('click', async () => {
+        if (currentEditLinkIndex === null) return;
+        const idx = currentEditLinkIndex;
+        const ok = await deleteLink(idx);
+        if (ok) closeLinkModal();
+    });
 
-        if (e.target.closest('.delete-link')) {
-            const index = e.target.closest('.delete-link').dataset.index;
-            deleteLink(index);
+    document.getElementById('link-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'link-modal') closeLinkModal();
+    });
+    document.getElementById('engine-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'engine-modal') closeEngineModal();
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeLinkModal();
+            closeEngineModal();
+            closeBgModal();
+            document.getElementById('settings-panel').classList.remove('open');
         }
     });
 
-    // 主题切换
+    // 点击空白处取消所有 touch-active 状态
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.link-card') && !e.target.closest('.engine-btn-container')) {
+            document.querySelectorAll('.touch-active').forEach(el => {
+                el.classList.remove('touch-active');
+                delete el.dataset.tapBlocked;
+            });
+        }
+    });
+
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
     document.getElementById('system-theme-toggle').addEventListener('change', toggleFollowSystem);
 
-    // 清空历史记录
-    document.getElementById('clear-history').addEventListener('click', () => {
-        if (confirm('确定要清空所有搜索历史吗？')) {
-            clearSearchHistory();
-        }
+    document.getElementById('blur-toggle').addEventListener('change', (e) => {
+        const enabled = e.target.checked;
+        localStorage.setItem('blurEnabled', enabled);
+        document.body.classList.toggle('no-blur', !enabled);
     });
 
-    // 链接图标选项切换
+    document.getElementById('clear-history').addEventListener('click', () => {
+        if (confirm('确定要清空所有搜索历史吗？')) clearSearchHistory();
+    });
+
+    document.getElementById('export-config-btn').addEventListener('click', exportConfig);
+    document.getElementById('import-config-btn').addEventListener('click', () => {
+        document.getElementById('import-config-file').click();
+    });
+    document.getElementById('import-config-file').addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+        await importConfigFromFile(file);
+    });
+
+    // 链接图标
     document.querySelectorAll('#link-modal .icon-option').forEach(option => {
         option.addEventListener('click', () => {
-            // 更新选中状态
-            document.querySelectorAll('#link-modal .icon-option').forEach(o => {
-                o.classList.remove('active');
-            });
+            document.querySelectorAll('#link-modal .icon-option').forEach(o => o.classList.remove('active'));
             option.classList.add('active');
-
-            // 显示对应输入框
-            document.querySelectorAll('#link-modal .icon-selector').forEach(el => {
-                el.style.display = 'none';
-            });
+            document.querySelectorAll('#link-modal .icon-selector').forEach(el => el.style.display = 'none');
 
             const type = option.dataset.type;
             if (type === 'fa') {
                 document.getElementById('link-fa-container').style.display = 'block';
+                currentLinkIconType = 'fa';
+                currentLinkKeepExistingIcon = false;
             } else if (type === 'url') {
                 document.getElementById('link-url-container').style.display = 'block';
+                currentLinkIconType = 'url';
+                currentLinkKeepExistingIcon = false;
             } else if (type === 'upload') {
                 document.getElementById('link-upload-container').style.display = 'block';
+                currentLinkIconType = 'upload';
+                if (currentEditLinkOriginalType === 'db' && currentEditLinkId) {
+                    currentLinkKeepExistingIcon = true;
+                }
             }
-
-            // 更新当前选择的图标类型
-            currentLinkIconType = type;
+            updateLinkIconPreview();
         });
     });
 
-    // 链接图标输入变化
     document.getElementById('link-fa-icon').addEventListener('input', updateLinkIconPreview);
     document.getElementById('link-icon-url').addEventListener('input', updateLinkIconPreview);
     document.getElementById('link-icon-upload').addEventListener('change', handleLinkIconUpload);
 
-    // 引擎图标选项切换
+    // 引擎图标
     document.querySelectorAll('#engine-modal .icon-option').forEach(option => {
         option.addEventListener('click', () => {
-            // 更新选中状态
-            document.querySelectorAll('#engine-modal .icon-option').forEach(o => {
-                o.classList.remove('active');
-            });
+            document.querySelectorAll('#engine-modal .icon-option').forEach(o => o.classList.remove('active'));
             option.classList.add('active');
-
-            // 显示对应输入框
-            document.querySelectorAll('#engine-modal .icon-selector').forEach(el => {
-                el.style.display = 'none';
-            });
+            document.querySelectorAll('#engine-modal .icon-selector').forEach(el => el.style.display = 'none');
 
             const type = option.dataset.type;
             if (type === 'fa') {
                 document.getElementById('engine-fa-container').style.display = 'block';
+                currentEngineIconType = 'fa';
+                currentEngineKeepExistingIcon = false;
             } else if (type === 'url') {
                 document.getElementById('engine-url-container').style.display = 'block';
+                currentEngineIconType = 'url';
+                currentEngineKeepExistingIcon = false;
             } else if (type === 'upload') {
                 document.getElementById('engine-upload-container').style.display = 'block';
+                currentEngineIconType = 'upload';
+                if (currentEditEngine && currentEditEngine.type === 'db') {
+                    currentEngineKeepExistingIcon = true;
+                }
             }
-
-            // 更新当前选择的图标类型
-            currentEngineIconType = type;
+            updateEngineIconPreview();
         });
     });
 
-    // 引擎图标输入变化
     document.getElementById('engine-fa-icon').addEventListener('input', updateEngineIconPreview);
     document.getElementById('engine-icon-url').addEventListener('input', updateEngineIconPreview);
     document.getElementById('engine-icon-upload').addEventListener('change', handleEngineIconUpload);
 
-    // 设置面板切换
-    document.getElementById('settings-toggle').addEventListener('click', function() {
+    // 背景
+    document.getElementById('bg-settings-btn').addEventListener('click', () => {
+        document.getElementById('settings-panel').classList.remove('open');
+        openBgModal();
+    });
+    document.getElementById('close-bg-modal').addEventListener('click', closeBgModal);
+    document.getElementById('cancel-bg-btn').addEventListener('click', closeBgModal);
+    document.getElementById('save-bg-btn').addEventListener('click', saveBg);
+    document.getElementById('bg-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'bg-modal') closeBgModal();
+    });
+
+    document.querySelectorAll('#bg-modal .icon-option').forEach(option => {
+        option.addEventListener('click', () => {
+            document.querySelectorAll('#bg-modal .icon-option').forEach(o => o.classList.remove('active'));
+            option.classList.add('active');
+            document.querySelectorAll('#bg-modal .icon-selector').forEach(el => el.style.display = 'none');
+
+            const type = option.dataset.bgType;
+            const previewImage = document.getElementById('bg-preview-image');
+            const uploadHint = document.getElementById('bg-upload-hint');
+
+            if (type === 'none') {
+                currentBgType = 'none';
+                previewImage.style.backgroundImage = cssUrl(DEFAULT_BG_URL);
+                uploadHint.style.display = 'none';
+            } else if (type === 'url') {
+                currentBgType = 'url';
+                document.getElementById('bg-url-container').style.display = 'block';
+                uploadHint.style.display = 'none';
+                updateBgPreviewFromUrl();
+            } else if (type === 'upload') {
+                currentBgType = 'upload';
+                document.getElementById('bg-upload-container').style.display = 'block';
+                if (bgKeepExisting) {
+                    uploadHint.style.display = 'block';
+                    getIconFromDB(BG_STORE, BG_KEY).then(data => {
+                        previewImage.style.backgroundImage = cssUrl(data || DEFAULT_BG_URL);
+                    }).catch(() => {
+                        previewImage.style.backgroundImage = cssUrl(DEFAULT_BG_URL);
+                    });
+                } else {
+                    uploadHint.style.display = 'none';
+                    previewImage.style.backgroundImage = cssUrl(DEFAULT_BG_URL);
+                }
+            }
+        });
+    });
+
+    document.getElementById('bg-url-input').addEventListener('input', updateBgPreviewFromUrl);
+
+    document.getElementById('bg-image-upload').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (!file.type.match('image.*')) {
+            alert('请选择图片文件');
+            e.target.value = '';
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            document.getElementById('bg-preview-image').style.backgroundImage = cssUrl(ev.target.result);
+            bgKeepExisting = false;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    const effectKeys = ['blur', 'brightness', 'saturation', 'overlay'];
+    effectKeys.forEach(key => {
+        const input = document.getElementById('bg-' + key);
+        input.addEventListener('input', () => {
+            previewEffects[key] = parseInt(input.value, 10);
+            updateSliderProgress(input);
+            updateSliderLabels();
+            updateBgPreviewEffects();
+        });
+    });
+
+    document.getElementById('reset-bg-effects').addEventListener('click', () => {
+        previewEffects = { ...DEFAULT_EFFECTS };
+        setSlidersFromEffects(previewEffects);
+        updateAllSliderProgress();
+        updateBgPreviewEffects();
+    });
+
+    document.querySelectorAll('.bg-preset-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const preset = BG_PRESETS[btn.dataset.preset];
+            if (!preset) return;
+            previewEffects = { ...preset };
+            setSlidersFromEffects(previewEffects);
+            updateAllSliderProgress();
+            updateBgPreviewEffects();
+        });
+    });
+
+    document.getElementById('settings-toggle').addEventListener('click', function (e) {
+        e.stopPropagation();
         document.getElementById('settings-panel').classList.toggle('open');
     });
 
-    // 重置设置按钮
     document.getElementById('reset-settings').addEventListener('click', resetAllSettings);
 
-    // 点击页面其他地方关闭设置面板
-    document.addEventListener('click', function(e) {
+    document.addEventListener('click', function (e) {
         const settingsPanel = document.getElementById('settings-panel');
         const settingsToggle = document.getElementById('settings-toggle');
 
@@ -931,7 +1668,9 @@ function setupEventListeners() {
     });
 }
 
-// 打开链接模态框
+// ============================================================
+// 快捷方式模态框
+// ============================================================
 function openLinkModal(index = null) {
     const modal = document.getElementById('link-modal');
     const title = document.getElementById('link-modal-title');
@@ -940,235 +1679,207 @@ function openLinkModal(index = null) {
     const faInput = document.getElementById('link-fa-icon');
     const urlIconInput = document.getElementById('link-icon-url');
     const uploadInput = document.getElementById('link-icon-upload');
+    const uploadHint = document.getElementById('link-upload-hint');
+    const deleteBtn = document.getElementById('delete-link-btn');
 
-    // 重置模态框状态
     document.querySelectorAll('#link-modal .icon-option').forEach(o => o.classList.remove('active'));
     document.getElementById('link-fa-option').classList.add('active');
     document.querySelectorAll('#link-modal .icon-selector').forEach(el => el.style.display = 'none');
     document.getElementById('link-fa-container').style.display = 'block';
     currentLinkIconType = 'fa';
+    currentLinkKeepExistingIcon = false;
+    currentEditLinkId = null;
+    currentEditLinkOriginalType = null;
     faInput.value = '';
     urlIconInput.value = '';
     uploadInput.value = '';
+    uploadHint.style.display = 'none';
 
-    if (index !== null) {
-        // 编辑模式
-        title.textContent = '编辑快捷方式';
+    if (index !== null && index >= 0) {
         const links = getSavedLinks();
         const link = links[index];
+        if (!link) { alert('未找到该快捷方式'); return; }
+
+        title.textContent = '编辑快捷方式';
         nameInput.value = link.name;
         urlInput.value = link.url;
+        currentEditLinkId = link.id;
+        currentEditLinkOriginalType = link.type;
+        currentEditLinkIndex = index;
+        deleteBtn.style.display = 'inline-block';
 
-        // 设置图标
-        currentLinkIconType = link.type;
         if (link.type === 'fa') {
             faInput.value = link.icon;
-            document.querySelectorAll('#link-modal .icon-option').forEach(o => o.classList.remove('active'));
-            document.getElementById('link-fa-option').classList.add('active');
-            document.querySelectorAll('#link-modal .icon-selector').forEach(el => el.style.display = 'none');
-            document.getElementById('link-fa-container').style.display = 'block';
         } else if (link.type === 'url') {
             urlIconInput.value = link.icon;
             document.querySelectorAll('#link-modal .icon-option').forEach(o => o.classList.remove('active'));
             document.getElementById('link-url-option').classList.add('active');
             document.querySelectorAll('#link-modal .icon-selector').forEach(el => el.style.display = 'none');
             document.getElementById('link-url-container').style.display = 'block';
+            currentLinkIconType = 'url';
         } else if (link.type === 'db') {
             document.querySelectorAll('#link-modal .icon-option').forEach(o => o.classList.remove('active'));
             document.getElementById('link-upload-option').classList.add('active');
             document.querySelectorAll('#link-modal .icon-selector').forEach(el => el.style.display = 'none');
             document.getElementById('link-upload-container').style.display = 'block';
+            currentLinkIconType = 'upload';
+            currentLinkKeepExistingIcon = true;
+            uploadHint.style.display = 'block';
         }
 
         updateLinkIconPreview();
-        currentEditLinkIndex = index;
     } else {
-        // 添加模式
         title.textContent = '添加快捷方式';
         nameInput.value = '';
         urlInput.value = '';
         currentEditLinkIndex = null;
-
-        // 重置图标预览
-        const preview = document.getElementById('link-icon-preview');
-        preview.innerHTML = '<i class="fas fa-link"></i>';
+        deleteBtn.style.display = 'none';
+        document.getElementById('link-icon-preview').innerHTML = '<i class="fas fa-link"></i>';
     }
 
+    modal.classList.add('show');
     modal.style.display = 'flex';
-    nameInput.focus();
+    setTimeout(() => nameInput.focus(), 50);
 }
 
-// 更新链接图标预览
 function updateLinkIconPreview() {
     const preview = document.getElementById('link-icon-preview');
 
     if (currentLinkIconType === 'fa') {
-        const faClass = document.getElementById('link-fa-icon').value;
-        if (faClass) {
-            preview.innerHTML = `<i class="${faClass}"></i>`;
-        } else {
-            preview.innerHTML = '<i class="fas fa-link"></i>';
-        }
+        const faClass = sanitizeFaClass(document.getElementById('link-fa-icon').value);
+        preview.innerHTML = faClass ? `<i class="${faClass}"></i>` : '<i class="fas fa-link"></i>';
     } else if (currentLinkIconType === 'url') {
-        const url = document.getElementById('link-icon-url').value;
-        if (url) {
-            preview.innerHTML = `<img src="${escapeHtml(url)}" alt="图标预览">`;
-        } else {
-            preview.innerHTML = '<i class="fas fa-link"></i>';
-        }
+        const url = document.getElementById('link-icon-url').value.trim();
+        preview.innerHTML = url
+            ? `<img src="${escapeHtml(url)}" alt="图标预览" onerror="this.replaceWith(document.createElement('i'))">`
+            : '<i class="fas fa-link"></i>';
     }
 }
 
-// 处理链接图标上传
 function handleLinkIconUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
-
-    if (!file.type.match('image.*')) {
-        alert('请选择图片文件');
-        return;
-    }
+    if (!file.type.match('image.*')) { alert('请选择图片文件'); e.target.value = ''; return; }
+    if (file.size > 500 * 1024) { alert('图标文件过大，请选择小于 500KB 的图片'); e.target.value = ''; return; }
 
     const reader = new FileReader();
-    reader.onload = function(e) {
-        const preview = document.getElementById('link-icon-preview');
-        preview.innerHTML = `<img src="${e.target.result}" alt="上传的图标">`;
+    reader.onload = function (ev) {
+        document.getElementById('link-icon-preview').innerHTML = `<img src="${ev.target.result}" alt="上传的图标">`;
+        currentLinkKeepExistingIcon = false;
     };
     reader.readAsDataURL(file);
 }
 
-// 关闭链接模态框
 function closeLinkModal() {
-    document.getElementById('link-modal').style.display = 'none';
+    const modal = document.getElementById('link-modal');
+    modal.classList.remove('show');
+    modal.style.display = 'none';
 }
 
-// 保存链接
 async function saveLink() {
     const name = document.getElementById('link-name').value.trim();
     const url = document.getElementById('link-url').value.trim();
 
-    if (!name || !url) {
-        alert('请填写名称和网址');
-        return;
-    }
+    if (!name || !url) { alert('请填写名称和网址'); return; }
 
-    // 验证URL格式
-    try {
-        new URL(url);
-    } catch (e) {
-        alert('请输入有效的网址（例如：https://example.com）');
-        return;
-    }
+    let normalizedUrl = url;
+    if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url)) normalizedUrl = 'https://' + url;
+    try { new URL(normalizedUrl); }
+    catch (e) { alert('请输入有效的网址（例如：https://example.com）'); return; }
 
-    // 获取图标
-    let iconValue = '';
     let iconType = currentLinkIconType;
-    let id = '';
+    let iconValue = '';
 
     if (iconType === 'upload') {
         const fileInput = document.getElementById('link-icon-upload');
-        if (!fileInput.files[0]) {
+        if (fileInput.files && fileInput.files[0]) {
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = async function () {
+                await completeSaveLink(name, normalizedUrl, reader.result, 'db', currentEditLinkId, false);
+            };
+            reader.onerror = () => alert('读取文件失败，请重试');
+            reader.readAsDataURL(file);
+            return;
+        } else if (currentLinkKeepExistingIcon && currentEditLinkId) {
+            await completeSaveLink(name, normalizedUrl, '', 'db', currentEditLinkId, true);
+            return;
+        } else {
             alert('请选择要上传的图标');
             return;
         }
-        const file = fileInput.files[0];
-        const reader = new FileReader();
-        reader.onload = async function() {
-            iconValue = reader.result;
-            // 对于上传的图片，我们将其保存到IndexedDB
-            iconType = 'db';
-
-            // 完成保存
-            await completeSaveLink(name, url, iconValue, iconType, id);
-        };
-        reader.readAsDataURL(file);
-        return; // 异步处理，稍后继续
     } else if (iconType === 'fa') {
-        iconValue = document.getElementById('link-fa-icon').value.trim();
-        if (!iconValue) {
-            alert('请输入Font Awesome图标类名');
-            return;
-        }
+        iconValue = sanitizeFaClass(document.getElementById('link-fa-icon').value);
+        if (!iconValue) { alert('请输入有效的 Font Awesome 图标类名'); return; }
     } else if (iconType === 'url') {
         iconValue = document.getElementById('link-icon-url').value.trim();
-        if (!iconValue) {
-            alert('请输入图标URL');
-            return;
-        }
-        try {
-            new URL(iconValue);
-        } catch (e) {
-            alert('请输入有效的图标URL');
-            return;
-        }
+        if (!iconValue) { alert('请输入图标URL'); return; }
+        try { new URL(iconValue); }
+        catch (e) { alert('请输入有效的图标URL'); return; }
     }
 
-    await completeSaveLink(name, url, iconValue, iconType, id);
+    await completeSaveLink(name, normalizedUrl, iconValue, iconType, currentEditLinkId, false);
 }
 
-async function completeSaveLink(name, url, iconValue, iconType, id) {
+async function completeSaveLink(name, url, iconValue, iconType, id, keepExistingIcon) {
     const links = getSavedLinks();
+    const finalId = id || ('link_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8));
+    const oldLink = currentEditLinkIndex !== null ? links[currentEditLinkIndex] : null;
+
     const linkData = {
-        id: id || 'link_' + Date.now(),
+        id: finalId,
         name: name,
         url: url,
-        icon: iconValue,
+        icon: iconType === 'db' ? '' : iconValue,
         type: iconType
     };
 
-    // 如果是上传的图片类型，保存到IndexedDB
     if (iconType === 'db') {
-        try {
-            await saveIconToDB(LINK_ICONS_STORE, linkData.id, iconValue);
-        } catch (error) {
-            console.error("保存链接图标失败:", error);
-            alert("保存图标时出错，请重试");
-            return;
+        if (!keepExistingIcon) {
+            try { await saveIconToDB(LINK_ICONS_STORE, finalId, iconValue); }
+            catch (error) {
+                console.error("保存链接图标失败:", error);
+                alert("保存图标时出错，请重试");
+                return;
+            }
         }
-        // 在链接数据中不存储实际图标数据，只存储类型为'db'
-        linkData.icon = '';
+    } else if (oldLink && oldLink.type === 'db' && oldLink.id === finalId) {
+        try { await deleteIconFromDB(LINK_ICONS_STORE, finalId); }
+        catch (error) { console.error("清理旧链接图标失败:", error); }
     }
 
-    if (currentEditLinkIndex !== null) {
-        // 更新现有链接
+    if (currentEditLinkIndex !== null && links[currentEditLinkIndex]) {
         links[currentEditLinkIndex] = linkData;
     } else {
-        // 添加新链接
         links.push(linkData);
     }
 
-    // 保存到localStorage
     localStorage.setItem('quickLinks', JSON.stringify(links));
-
-    // 重新渲染链接
     renderLinks(links);
-
-    // 关闭模态框
     closeLinkModal();
 }
 
-// 删除链接
 async function deleteLink(index) {
-    if (confirm('确定要删除这个快捷方式吗？')) {
-        const links = getSavedLinks();
-        const link = links[index];
+    if (!confirm('确定要删除这个快捷方式吗？')) return false;
 
-        // 如果是存储在IndexedDB中的图标，删除它
-        if (link.type === 'db') {
-            try {
-                await deleteIconFromDB(LINK_ICONS_STORE, link.id);
-            } catch (error) {
-                console.error("删除链接图标失败:", error);
-            }
-        }
+    const links = getSavedLinks();
+    const link = links[index];
+    if (!link) return false;
 
-        links.splice(index, 1);
-        localStorage.setItem('quickLinks', JSON.stringify(links));
-        renderLinks(links);
+    if (link.type === 'db') {
+        try { await deleteIconFromDB(LINK_ICONS_STORE, link.id); }
+        catch (error) { console.error("删除链接图标失败:", error); }
     }
+
+    links.splice(index, 1);
+    localStorage.setItem('quickLinks', JSON.stringify(links));
+    renderLinks(links);
+    return true;
 }
 
-// 打开搜索引擎模态框
+// ============================================================
+// 搜索引擎模态框
+// ============================================================
 function openEngineModal(engineId = null) {
     const modal = document.getElementById('engine-modal');
     const title = document.getElementById('engine-modal-title');
@@ -1177,267 +1888,201 @@ function openEngineModal(engineId = null) {
     const faInput = document.getElementById('engine-fa-icon');
     const urlIconInput = document.getElementById('engine-icon-url');
     const uploadInput = document.getElementById('engine-icon-upload');
+    const uploadHint = document.getElementById('engine-upload-hint');
     const deleteBtn = document.getElementById('delete-engine-btn');
 
-    // 重置模态框状态
     document.querySelectorAll('#engine-modal .icon-option').forEach(o => o.classList.remove('active'));
     document.getElementById('engine-fa-option').classList.add('active');
     document.querySelectorAll('#engine-modal .icon-selector').forEach(el => el.style.display = 'none');
     document.getElementById('engine-fa-container').style.display = 'block';
     currentEngineIconType = 'fa';
+    currentEngineKeepExistingIcon = false;
     faInput.value = '';
     urlIconInput.value = '';
     uploadInput.value = '';
+    uploadHint.style.display = 'none';
 
     if (engineId) {
-        // 编辑模式
-        title.textContent = '编辑搜索引擎';
         const engines = getSavedEngines();
         const engine = engines.find(e => e.id === engineId);
+        if (!engine) { alert('未找到该搜索引擎'); return; }
 
-        if (engine) {
-            nameInput.value = engine.name;
-            urlInput.value = engine.url;
+        title.textContent = '编辑搜索引擎';
+        nameInput.value = engine.name;
+        urlInput.value = engine.url;
+        currentEditEngine = engine;
 
-            // 设置图标
-            currentEngineIconType = engine.type;
-            if (engine.type === 'fa') {
-                faInput.value = engine.icon;
-                document.querySelectorAll('#engine-modal .icon-option').forEach(o => o.classList.remove('active'));
-                document.getElementById('engine-fa-option').classList.add('active');
-                document.querySelectorAll('#engine-modal .icon-selector').forEach(el => el.style.display = 'none');
-                document.getElementById('engine-fa-container').style.display = 'block';
-            } else if (engine.type === 'url') {
-                urlIconInput.value = engine.icon;
-                document.querySelectorAll('#engine-modal .icon-option').forEach(o => o.classList.remove('active'));
-                document.getElementById('engine-url-option').classList.add('active');
-                document.querySelectorAll('#engine-modal .icon-selector').forEach(el => el.style.display = 'none');
-                document.getElementById('engine-url-container').style.display = 'block';
-            } else if (engine.type === 'db') {
-                document.querySelectorAll('#engine-modal .icon-option').forEach(o => o.classList.remove('active'));
-                document.getElementById('engine-upload-option').classList.add('active');
-                document.querySelectorAll('#engine-modal .icon-selector').forEach(el => el.style.display = 'none');
-                document.getElementById('engine-upload-container').style.display = 'block';
-            }
-
-            updateEngineIconPreview();
-            currentEditEngine = engine;
-
-            // 如果是默认引擎，隐藏删除按钮
-            deleteBtn.style.display = engine.isDefault ? 'none' : 'inline-block';
+        if (engine.type === 'fa') {
+            faInput.value = engine.icon;
+        } else if (engine.type === 'url') {
+            urlIconInput.value = engine.icon;
+            document.querySelectorAll('#engine-modal .icon-option').forEach(o => o.classList.remove('active'));
+            document.getElementById('engine-url-option').classList.add('active');
+            document.querySelectorAll('#engine-modal .icon-selector').forEach(el => el.style.display = 'none');
+            document.getElementById('engine-url-container').style.display = 'block';
+            currentEngineIconType = 'url';
+        } else if (engine.type === 'db') {
+            document.querySelectorAll('#engine-modal .icon-option').forEach(o => o.classList.remove('active'));
+            document.getElementById('engine-upload-option').classList.add('active');
+            document.querySelectorAll('#engine-modal .icon-selector').forEach(el => el.style.display = 'none');
+            document.getElementById('engine-upload-container').style.display = 'block';
+            currentEngineIconType = 'upload';
+            currentEngineKeepExistingIcon = true;
+            uploadHint.style.display = 'block';
         }
+
+        updateEngineIconPreview();
+        deleteBtn.style.display = engine.isDefault ? 'none' : 'inline-block';
     } else {
-        // 添加模式
         title.textContent = '添加搜索引擎';
         nameInput.value = '';
         urlInput.value = '';
         currentEditEngine = null;
         deleteBtn.style.display = 'none';
-
-        // 重置图标预览
-        const preview = document.getElementById('engine-icon-preview');
-        preview.innerHTML = '<i class="fas fa-search"></i>';
+        document.getElementById('engine-icon-preview').innerHTML = '<i class="fas fa-search"></i>';
     }
 
+    modal.classList.add('show');
     modal.style.display = 'flex';
-    nameInput.focus();
+    setTimeout(() => nameInput.focus(), 50);
 }
 
-// 更新引擎图标预览
 function updateEngineIconPreview() {
     const preview = document.getElementById('engine-icon-preview');
 
     if (currentEngineIconType === 'fa') {
-        const faClass = document.getElementById('engine-fa-icon').value;
-        if (faClass) {
-            preview.innerHTML = `<i class="${faClass}"></i>`;
-        } else {
-            preview.innerHTML = '<i class="fas fa-search"></i>';
-        }
+        const faClass = sanitizeFaClass(document.getElementById('engine-fa-icon').value);
+        preview.innerHTML = faClass ? `<i class="${faClass}"></i>` : '<i class="fas fa-search"></i>';
     } else if (currentEngineIconType === 'url') {
-        const url = document.getElementById('engine-icon-url').value;
-        if (url) {
-            preview.innerHTML = `<img src="${escapeHtml(url)}" alt="图标预览">`;
-        } else {
-            preview.innerHTML = '<i class="fas fa-search"></i>';
-        }
+        const url = document.getElementById('engine-icon-url').value.trim();
+        preview.innerHTML = url
+            ? `<img src="${escapeHtml(url)}" alt="图标预览" onerror="this.replaceWith(document.createElement('i'))">`
+            : '<i class="fas fa-search"></i>';
     }
 }
 
-// 处理引擎图标上传
 function handleEngineIconUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
-
-    if (!file.type.match('image.*')) {
-        alert('请选择图片文件');
-        return;
-    }
+    if (!file.type.match('image.*')) { alert('请选择图片文件'); e.target.value = ''; return; }
+    if (file.size > 500 * 1024) { alert('图标文件过大，请选择小于 500KB 的图片'); e.target.value = ''; return; }
 
     const reader = new FileReader();
-    reader.onload = function(e) {
-        const preview = document.getElementById('engine-icon-preview');
-        preview.innerHTML = `<img src="${e.target.result}" alt="上传的图标">`;
+    reader.onload = function (ev) {
+        document.getElementById('engine-icon-preview').innerHTML = `<img src="${ev.target.result}" alt="上传的图标">`;
+        currentEngineKeepExistingIcon = false;
     };
     reader.readAsDataURL(file);
 }
 
-// 关闭引擎模态框
 function closeEngineModal() {
-    document.getElementById('engine-modal').style.display = 'none';
+    const modal = document.getElementById('engine-modal');
+    modal.classList.remove('show');
+    modal.style.display = 'none';
 }
 
-// 保存搜索引擎
 async function saveEngine() {
     const name = document.getElementById('engine-name').value.trim();
     const url = document.getElementById('engine-url').value.trim();
 
-    if (!name || !url) {
-        alert('请填写名称和搜索URL');
-        return;
-    }
+    if (!name || !url) { alert('请填写名称和搜索URL'); return; }
+    if (!url.includes('{query}')) { alert('搜索URL中必须包含{query}占位符'); return; }
 
-    if (!url.includes('{query}')) {
-        alert('搜索URL中必须包含{query}占位符');
-        return;
-    }
-
-    // 获取图标
-    let iconValue = '';
     let iconType = currentEngineIconType;
+    let iconValue = '';
 
     if (iconType === 'upload') {
         const fileInput = document.getElementById('engine-icon-upload');
-        if (!fileInput.files[0]) {
+        if (fileInput.files && fileInput.files[0]) {
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = async function () {
+                await completeSaveEngine(name, url, reader.result, 'db', false);
+            };
+            reader.onerror = () => alert('读取文件失败，请重试');
+            reader.readAsDataURL(file);
+            return;
+        } else if (currentEngineKeepExistingIcon && currentEditEngine) {
+            await completeSaveEngine(name, url, '', 'db', true);
+            return;
+        } else {
             alert('请选择要上传的图标');
             return;
         }
-        const file = fileInput.files[0];
-        const reader = new FileReader();
-        reader.onload = async function() {
-            iconValue = reader.result;
-            // 对于上传的图片，我们将其保存到IndexedDB
-            iconType = 'db';
-
-            // 完成保存
-            await completeSaveEngine(name, url, iconValue, iconType);
-        };
-        reader.readAsDataURL(file);
-        return; // 异步处理，稍后继续
     } else if (iconType === 'fa') {
-        iconValue = document.getElementById('engine-fa-icon').value.trim();
-        if (!iconValue) {
-            alert('请输入Font Awesome图标类名');
-            return;
-        }
+        iconValue = sanitizeFaClass(document.getElementById('engine-fa-icon').value);
+        if (!iconValue) { alert('请输入有效的 Font Awesome 图标类名'); return; }
     } else if (iconType === 'url') {
         iconValue = document.getElementById('engine-icon-url').value.trim();
-        if (!iconValue) {
-            alert('请输入图标URL');
-            return;
-        }
-        try {
-            new URL(iconValue);
-        } catch (e) {
-            alert('请输入有效的图标URL');
-            return;
-        }
+        if (!iconValue) { alert('请输入图标URL'); return; }
+        try { new URL(iconValue); }
+        catch (e) { alert('请输入有效的图标URL'); return; }
     }
 
-    await completeSaveEngine(name, url, iconValue, iconType);
+    await completeSaveEngine(name, url, iconValue, iconType, false);
 }
 
-async function completeSaveEngine(name, url, iconValue, iconType) {
+async function completeSaveEngine(name, url, iconValue, iconType, keepExistingIcon) {
     const engines = getSavedEngines();
-    const engineId = currentEditEngine ? currentEditEngine.id : `engine_${Date.now()}`;
+    const engineId = currentEditEngine ? currentEditEngine.id : ('engine_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8));
 
-    // 如果是上传的图片类型，保存到IndexedDB
     if (iconType === 'db') {
-        try {
-            await saveIconToDB(ENGINE_ICONS_STORE, engineId, iconValue);
-        } catch (error) {
-            console.error("保存搜索引擎图标失败:", error);
-            alert("保存图标时出错，请重试");
-            return;
+        if (!keepExistingIcon) {
+            try { await saveIconToDB(ENGINE_ICONS_STORE, engineId, iconValue); }
+            catch (error) {
+                console.error("保存搜索引擎图标失败:", error);
+                alert("保存图标时出错，请重试");
+                return;
+            }
         }
-        // 在引擎数据中不存储实际图标数据，只存储类型为'db'
-        iconValue = '';
+    } else if (currentEditEngine && currentEditEngine.type === 'db' && currentEditEngine.id === engineId) {
+        try { await deleteIconFromDB(ENGINE_ICONS_STORE, engineId); }
+        catch (error) { console.error("清理旧引擎图标失败:", error); }
     }
 
     const engineData = {
         id: engineId,
         name: name,
         url: url,
-        icon: iconValue,
+        icon: iconType === 'db' ? '' : iconValue,
         type: iconType,
-        isDefault: false
+        isDefault: currentEditEngine ? !!currentEditEngine.isDefault : false
     };
 
     if (currentEditEngine) {
-        // 更新现有引擎
         const index = engines.findIndex(e => e.id === engineId);
-        if (index !== -1) {
-            engines[index] = engineData;
-        }
+        if (index !== -1) engines[index] = engineData;
     } else {
-        // 添加新引擎
         engines.push(engineData);
     }
 
-    // 保存到localStorage
     localStorage.setItem('searchEngines', JSON.stringify(engines));
-
-    // 重新渲染引擎
     renderSearchEngines(engines);
-
-    // 关闭模态框
     closeEngineModal();
 }
 
-// 删除搜索引擎
 async function deleteEngine() {
     if (!currentEditEngine || currentEditEngine.isDefault) return;
+    if (!confirm(`确定要删除搜索引擎 "${currentEditEngine.name}" 吗？`)) return;
 
-    if (confirm(`确定要删除搜索引擎 "${currentEditEngine.name}" 吗？`)) {
-        const engines = getSavedEngines();
-        const index = engines.findIndex(e => e.id === currentEditEngine.id);
+    const engines = getSavedEngines();
+    const index = engines.findIndex(e => e.id === currentEditEngine.id);
+    if (index === -1) return;
 
-        if (index !== -1) {
-            // 如果是存储在IndexedDB中的图标，删除它
-            if (currentEditEngine.type === 'db') {
-                try {
-                    await deleteIconFromDB(ENGINE_ICONS_STORE, currentEditEngine.id);
-                } catch (error) {
-                    console.error("删除搜索引擎图标失败:", error);
-                }
-            }
-
-            engines.splice(index, 1);
-
-            // 保存到localStorage
-            localStorage.setItem('searchEngines', JSON.stringify(engines));
-
-            // 重新渲染引擎
-            renderSearchEngines(engines);
-
-            // 关闭模态框
-            closeEngineModal();
-        }
+    if (currentEditEngine.type === 'db') {
+        try { await deleteIconFromDB(ENGINE_ICONS_STORE, currentEditEngine.id); }
+        catch (error) { console.error("删除搜索引擎图标失败:", error); }
     }
-}
 
-// 设置主题色
-function setThemeColor() {
-    const themeColor = document.getElementById('theme-color');
-    if (document.body.classList.contains('dark-mode')) {
-        themeColor.content = '#1a1a2e'; // 夜间模式主题色
-    } else {
-        themeColor.content = '#f5f7fa'; // 日间模式主题色
+    const deletedId = currentEditEngine.id;
+    engines.splice(index, 1);
+    localStorage.setItem('searchEngines', JSON.stringify(engines));
+
+    if (localStorage.getItem('searchEngine') === deletedId) {
+        if (engines.length > 0) localStorage.setItem('searchEngine', engines[0].id);
+        else localStorage.removeItem('searchEngine');
     }
-}
 
-// 全局变量
-let currentEditLinkIndex = null;
-let currentLinkIconType = 'fa'; // 'fa', 'url', 'upload'
-let currentEditEngine = null;
-let currentEngineIconType = 'fa'; // 'fa', 'url', 'upload'
+    renderSearchEngines(engines);
+    closeEngineModal();
+}

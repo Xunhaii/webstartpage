@@ -18,6 +18,29 @@
     <meta name="theme-color" id="theme-color" content="#f5f7fa">
     <link rel="stylesheet" href="https://static.xunhaii.com/lib/font-awesome-v7/css/all.min.css">
     <link rel="stylesheet" href="/css/main.css">
+    <script>
+        (function () {
+            try {
+                var raw = localStorage.getItem('bgConfig');
+                if (!raw) return;
+                var cfg = JSON.parse(raw) || {};
+                var e = cfg.effects || {};
+                var root = document.documentElement;
+                if (typeof e.blur === 'number') root.style.setProperty('--bg-blur', e.blur + 'px');
+                if (typeof e.brightness === 'number') root.style.setProperty('--bg-brightness', e.brightness + '%');
+                if (typeof e.saturation === 'number') root.style.setProperty('--bg-saturation', e.saturation + '%');
+                if (typeof e.overlay === 'number') root.style.setProperty('--bg-overlay', (e.overlay / 100).toString());
+                if (cfg.type === 'url' && cfg.value) {
+                    var url = String(cfg.value)
+                        .replace(/\\/g, '\\\\')
+                        .replace(/"/g, '\\"')
+                        .replace(/\n/g, '\\n')
+                        .replace(/\r/g, '\\r');
+                    root.style.setProperty('--bg-image', 'url("' + url + '")');
+                }
+            } catch (err) { /* 忽略 */ }
+        })();
+    </script>
 </head>
 <body>
     <div class="container">
@@ -27,10 +50,10 @@
                 <span>Xunhaii起始页</span>
             </div>
             <div class="header-controls">
-                <button class="theme-btn" id="theme-toggle">
+                <button class="theme-btn" id="theme-toggle" aria-label="切换主题">
                     <i class="fas fa-moon"></i>
                 </button>
-                <button class="settings-btn" id="settings-toggle">
+                <button class="settings-btn" id="settings-toggle" aria-label="打开设置">
                     <i class="fas fa-cog"></i>
                 </button>
             </div>
@@ -45,11 +68,39 @@
                     <span class="slider"></span>
                 </label>
             </div>
+            <div class="settings-item">
+                <span class="settings-label">高斯模糊</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="blur-toggle" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="settings-item">
+                <span class="settings-label">自定义背景</span>
+                <button class="settings-sub-btn" id="bg-settings-btn" type="button">
+                    <i class="fas fa-image"></i>
+                    <span>设置</span>
+                </button>
+            </div>
+            <div class="settings-item">
+                <span class="settings-label">配置管理</span>
+                <div class="settings-btn-group">
+                    <button class="settings-sub-btn" id="export-config-btn" type="button" title="导出配置">
+                        <i class="fas fa-file-export"></i>
+                        <span>导出</span>
+                    </button>
+                    <button class="settings-sub-btn" id="import-config-btn" type="button" title="导入配置">
+                        <i class="fas fa-file-import"></i>
+                        <span>导入</span>
+                    </button>
+                </div>
+            </div>
             <button class="reset-btn" id="reset-settings">
                 <i class="fas fa-redo"></i>
                 <span>重置所有设置</span>
             </button>
         </div>
+        <input type="file" id="import-config-file" accept="application/json,.json" style="display:none">
 
         <div class="main-content">
             <div class="time-container" aria-label="当前时间">
@@ -59,9 +110,7 @@
 
             <div class="search-container">
                 <div class="search-engine-controls">
-                    <div class="search-engine-selector" id="engine-container">
-                        <!-- 搜索引擎按钮将通过JS动态添加 -->
-                    </div>
+                    <div class="search-engine-selector" id="engine-container"></div>
                     <button class="add-engine-btn" id="add-engine-btn">
                         <i class="fas fa-plus"></i>
                         <span>添加引擎</span>
@@ -69,7 +118,7 @@
                 </div>
                 <div class="search-box">
                     <input type="text" id="search-input" autocomplete="off" placeholder="搜索互联网...">
-                    <button id="search-btn">
+                    <button id="search-btn" aria-label="搜索">
                         <i class="fas fa-search"></i>
                     </button>
                 </div>
@@ -86,8 +135,23 @@
                         <span>添加快捷方式</span>
                     </button>
                 </div>
-                <div class="links-grid" id="links-container">
-                    <!-- 链接将通过JS动态添加 -->
+                <div class="links-grid" id="links-container"></div>
+
+                <!-- 提示卡片（可关闭） -->
+                <div class="links-tip-card" id="links-tip-card">
+                    <div class="links-tip-icon">
+                        <i class="fas fa-lightbulb"></i>
+                    </div>
+                    <div class="links-tip-body">
+                        <div class="links-tip-title">小提示</div>
+                        <div class="links-tip-desc">
+                            鼠标悬停或键盘聚焦卡片时，右上角会显示编辑按钮；触屏轻触卡片即可显示编辑按钮，再次轻触则打开链接。按住并拖动可调整顺序。
+                        </div>
+                    </div>
+                    <button class="links-tip-dismiss" id="links-tip-dismiss" type="button">
+                        <i class="fas fa-check"></i>
+                        <span>我知道了</span>
+                    </button>
                 </div>
             </div>
 
@@ -106,9 +170,7 @@
                             <span>清空历史</span>
                         </button>
                     </div>
-                    <div class="history-grid" id="history-container">
-                        <!-- 历史记录将通过JS动态添加 -->
-                    </div>
+                    <div class="history-grid" id="history-container"></div>
                 </div>
             </div>
         </div>
@@ -121,7 +183,7 @@
                 黔ICP备2026000583号-1
             </a>|
             <a href="https://beian.mps.gov.cn/#/query/webSearch?code=52052202522626" rel="noreferrer" target="_blank" style="color: inherit; text-decoration: none;">
-                <img alt="公安备案图标" src="https://static.xunhaii.com/images/beian_ga.png"style="vertical-align: middle; height: 14px;">
+                <img alt="公安备案图标" src="https://static.xunhaii.com/images/beian_ga.png" style="vertical-align: middle; height: 14px;">
                 贵公网安备52052202522626号
             </a>
         </div>
@@ -132,7 +194,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3 class="modal-title" id="link-modal-title">添加快捷方式</h3>
-                <button class="close-btn" id="close-link-modal">&times;</button>
+                <button class="close-btn" id="close-link-modal" aria-label="关闭">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -159,19 +221,15 @@
                             <div>上传图片</div>
                         </div>
                     </div>
-                    
                     <div class="icon-preview" id="link-icon-preview">
                         <i class="fas fa-link"></i>
                     </div>
-                    
                     <div id="link-fa-container" class="icon-selector">
                         <input type="text" id="link-fa-icon" class="form-control" placeholder="输入Font Awesome图标类名 (如: fab fa-x)">
                     </div>
-                    
                     <div id="link-url-container" class="icon-selector" style="display:none">
                         <input type="text" id="link-icon-url" class="form-control" placeholder="输入图标图片URL">
                     </div>
-                    
                     <div id="link-upload-container" class="icon-selector" style="display:none">
                         <div class="custom-upload">
                             <div class="custom-upload-button">
@@ -180,10 +238,14 @@
                             </div>
                             <input type="file" id="link-icon-upload" accept="image/*">
                         </div>
+                        <small class="hint" id="link-upload-hint" style="display:none; margin-top:6px; display:block; opacity:0.7; font-size:11px;">
+                            <i class="fas fa-info-circle"></i> 已存在上传的图标，不选择新文件则保留原图标
+                        </small>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
+                <button class="btn btn-danger" id="delete-link-btn" style="display:none">删除</button>
                 <button class="btn btn-outline" id="cancel-link-btn">取消</button>
                 <button class="btn btn-primary" id="save-link-btn">保存</button>
             </div>
@@ -195,7 +257,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3 class="modal-title" id="engine-modal-title">添加搜索引擎</h3>
-                <button class="close-btn" id="close-engine-modal">&times;</button>
+                <button class="close-btn" id="close-engine-modal" aria-label="关闭">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -223,19 +285,15 @@
                             <div>上传图片</div>
                         </div>
                     </div>
-                    
                     <div class="icon-preview" id="engine-icon-preview">
                         <i class="fas fa-search"></i>
                     </div>
-                    
                     <div id="engine-fa-container" class="icon-selector">
                         <input type="text" id="engine-fa-icon" class="form-control" placeholder="输入Font Awesome图标类名 (如: fas fa-search)">
                     </div>
-                    
                     <div id="engine-url-container" class="icon-selector" style="display:none">
                         <input type="text" id="engine-icon-url" class="form-control" placeholder="输入图标图片URL">
                     </div>
-                    
                     <div id="engine-upload-container" class="icon-selector" style="display:none">
                         <div class="custom-upload">
                             <div class="custom-upload-button">
@@ -244,6 +302,9 @@
                             </div>
                             <input type="file" id="engine-icon-upload" accept="image/*">
                         </div>
+                        <small class="hint" id="engine-upload-hint" style="display:none; margin-top:6px; display:block; opacity:0.7; font-size:11px;">
+                            <i class="fas fa-info-circle"></i> 已存在上传的图标，不选择新文件则保留原图标
+                        </small>
                     </div>
                 </div>
             </div>
@@ -251,6 +312,106 @@
                 <button class="btn btn-danger" id="delete-engine-btn" style="display:none">删除</button>
                 <button class="btn btn-outline" id="cancel-engine-btn">取消</button>
                 <button class="btn btn-primary" id="save-engine-btn">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 自定义背景模态框 -->
+    <div class="modal" id="bg-modal">
+        <div class="modal-content bg-modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">自定义背景</h3>
+                <button class="close-btn" id="close-bg-modal" aria-label="关闭">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>背景来源</label>
+                    <div class="icon-options">
+                        <div class="icon-option" data-bg-type="none" id="bg-none-option">
+                            <i class="fas fa-ban"></i>
+                            <div>默认</div>
+                        </div>
+                        <div class="icon-option" data-bg-type="url" id="bg-url-option">
+                            <i class="fas fa-link"></i>
+                            <div>图片链接</div>
+                        </div>
+                        <div class="icon-option" data-bg-type="upload" id="bg-upload-option">
+                            <i class="fas fa-upload"></i>
+                            <div>上传图片</div>
+                        </div>
+                    </div>
+                </div>
+                <div id="bg-url-container" class="icon-selector" style="display:none">
+                    <div class="form-group">
+                        <label for="bg-url-input">图片URL</label>
+                        <input type="text" id="bg-url-input" class="form-control" placeholder="https://example.com/image.jpg">
+                    </div>
+                </div>
+                <div id="bg-upload-container" class="icon-selector" style="display:none">
+                    <div class="form-group">
+                        <label>上传图片</label>
+                        <div class="custom-upload">
+                            <div class="custom-upload-button">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <span>选择图片文件</span>
+                            </div>
+                            <input type="file" id="bg-image-upload" accept="image/*">
+                        </div>
+                        <small class="hint" id="bg-upload-hint" style="display:none; margin-top:6px; display:block; opacity:0.7; font-size:11px;">
+                            <i class="fas fa-info-circle"></i> 已存在自定义背景，不选择新文件则保留原背景
+                        </small>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>实时预览</label>
+                    <div class="bg-preview">
+                        <div class="bg-preview-image" id="bg-preview-image"></div>
+                        <div class="bg-preview-overlay" id="bg-preview-overlay"></div>
+                    </div>
+                </div>
+                <div class="bg-effects-section">
+                    <div class="bg-effects-header">
+                        <h4><i class="fas fa-magic"></i> 视觉效果</h4>
+                        <button class="reset-effects-btn" id="reset-bg-effects" type="button">
+                            <i class="fas fa-undo"></i>
+                            <span>重置</span>
+                        </button>
+                    </div>
+                    <div class="bg-slider-row">
+                        <label for="bg-blur"><i class="fas fa-tint"></i> 模糊</label>
+                        <input type="range" id="bg-blur" min="0" max="30" value="0" step="1">
+                        <span class="bg-slider-value" id="bg-blur-value">0px</span>
+                    </div>
+                    <div class="bg-slider-row">
+                        <label for="bg-brightness"><i class="fas fa-sun"></i> 亮度</label>
+                        <input type="range" id="bg-brightness" min="50" max="150" value="100" step="5">
+                        <span class="bg-slider-value" id="bg-brightness-value">100%</span>
+                    </div>
+                    <div class="bg-slider-row">
+                        <label for="bg-saturation"><i class="fas fa-palette"></i> 饱和度</label>
+                        <input type="range" id="bg-saturation" min="0" max="200" value="100" step="5">
+                        <span class="bg-slider-value" id="bg-saturation-value">100%</span>
+                    </div>
+                    <div class="bg-slider-row">
+                        <label for="bg-overlay"><i class="fas fa-moon"></i> 暗色遮罩</label>
+                        <input type="range" id="bg-overlay" min="0" max="80" value="0" step="5">
+                        <span class="bg-slider-value" id="bg-overlay-value">0%</span>
+                    </div>
+                    <div class="bg-presets">
+                        <span class="bg-presets-label">快速预设</span>
+                        <div class="bg-preset-buttons">
+                            <button class="bg-preset-btn" data-preset="none" type="button">原图</button>
+                            <button class="bg-preset-btn" data-preset="dreamy" type="button">梦幻</button>
+                            <button class="bg-preset-btn" data-preset="cinema" type="button">影院</button>
+                            <button class="bg-preset-btn" data-preset="mono" type="button">黑白</button>
+                            <button class="bg-preset-btn" data-preset="vivid" type="button">鲜艳</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" id="cancel-bg-btn">取消</button>
+                <button class="btn btn-primary" id="save-bg-btn">保存</button>
             </div>
         </div>
     </div>
