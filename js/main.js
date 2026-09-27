@@ -27,10 +27,49 @@ function cssUrl(url) {
 }
 
 // ============================================================
+// 颜色工具
+// ============================================================
+function normalizeHex(hex) {
+    if (!hex || typeof hex !== 'string') return null;
+    let h = hex.trim();
+    if (!h.startsWith('#')) h = '#' + h;
+    if (/^#[0-9A-Fa-f]{3}$/.test(h)) {
+        h = '#' + h[1] + h[1] + h[2] + h[2] + h[3] + h[3];
+    }
+    if (!/^#[0-9A-Fa-f]{6}$/.test(h)) return null;
+    return h.toLowerCase();
+}
+
+function hexToRgb(hex) {
+    const norm = normalizeHex(hex);
+    if (!norm) return null;
+    const h = norm.slice(1);
+    return {
+        r: parseInt(h.slice(0, 2), 16),
+        g: parseInt(h.slice(2, 4), 16),
+        b: parseInt(h.slice(4, 6), 16)
+    };
+}
+
+function rgbToHex(r, g, b) {
+    const clamp = (v) => Math.max(0, Math.min(255, Math.round(v)));
+    return '#' + [clamp(r), clamp(g), clamp(b)].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+function darkenHex(hex, amount) {
+    const rgb = hexToRgb(hex);
+    if (!rgb) return hex;
+    return rgbToHex(rgb.r * (1 - amount), rgb.g * (1 - amount), rgb.b * (1 - amount));
+}
+
+// ============================================================
 // 常量
 // ============================================================
 const DEFAULT_BG_URL = 'https://www.xunhaii.com/bing-wallpaper/bing-wallpaper.jpg';
 const CONFIG_VERSION = 1;
+const MAX_HISTORY = 30;
+
+const DEFAULT_THEME_COLORS = { primary: '#4da6ff', accent: '#80c0ff' };
 
 // ============================================================
 // IndexedDB
@@ -103,6 +142,286 @@ function deleteIconFromDB(storeName, id) {
 }
 
 // ============================================================
+// 模态框/对话框：锁滚动 + 焦点陷阱
+// ============================================================
+let openModalCount = 0;
+
+function lockBodyScroll() {
+    openModalCount++;
+    document.body.classList.add('modal-open');
+}
+
+function unlockBodyScroll() {
+    openModalCount = Math.max(0, openModalCount - 1);
+    if (openModalCount === 0) document.body.classList.remove('modal-open');
+}
+
+function trapFocusWithin(container, e) {
+    if (e.key !== 'Tab') return;
+    const focusable = container.querySelectorAll(
+        'button:not([disabled]):not([tabindex="-1"]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusable.length === 0) return;
+    const list = Array.prototype.filter.call(focusable, el => el.offsetParent !== null || el === document.activeElement);
+    if (list.length === 0) return;
+    const first = list[0];
+    const last = list[list.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+    }
+}
+
+// ============================================================
+// 通用对话框系统
+// 使用 visibility + opacity 控制，避免 setTimeout + display 冲突
+// ============================================================
+const DIALOG_ICONS = {
+    info:     'fa-info-circle',
+    warning:  'fa-exclamation-triangle',
+    error:    'fa-times-circle',
+    success:  'fa-check-circle',
+    question: 'fa-question-circle'
+};
+
+function openDialog(config) {
+    return new Promise((resolve) => {
+        const overlay   = document.getElementById('dialog-overlay');
+        const dialogEl  = overlay.querySelector('.dialog');
+        const iconEl    = document.getElementById('dialog-icon');
+        const titleEl   = document.getElementById('dialog-title');
+        const messageEl = document.getElementById('dialog-message');
+        const okBtn     = document.getElementById('dialog-ok');
+        const cancelBtn = document.getElementById('dialog-cancel');
+
+        if (!overlay) {
+            if (config.showCancel) resolve(window.confirm(config.message));
+            else { window.alert(config.message); resolve(true); }
+            return;
+        }
+
+        titleEl.textContent = config.title || '提示';
+        messageEl.textContent = config.message || '';
+        messageEl.style.display = config.message ? '' : 'none';
+
+        const type = DIALOG_ICONS[config.iconType] ? config.iconType : 'info';
+        iconEl.className = 'dialog-icon ' + type;
+        iconEl.innerHTML = '<i class="fas ' + DIALOG_ICONS[type] + '"></i>';
+
+        okBtn.textContent = config.okText || '确定';
+        okBtn.className = 'btn ' + (config.danger ? 'btn-danger' : 'btn-primary');
+
+        if (config.showCancel) {
+            cancelBtn.style.display = '';
+            cancelBtn.textContent = config.cancelText || '取消';
+        } else {
+            cancelBtn.style.display = 'none';
+        }
+
+        // 只切换 show 类，不操作 display
+        overlay.classList.add('show');
+        lockBodyScroll();
+
+        setTimeout(() => okBtn.focus(), 50);
+
+        let settled = false;
+
+        const cleanup = () => {
+            if (settled) return;
+            settled = true;
+
+            // 只移除 show 类 —— CSS transition 会处理淡出
+            overlay.classList.remove('show');
+            unlockBodyScroll();
+
+            okBtn.removeEventListener('click', onOk);
+            cancelBtn.removeEventListener('click', onCancel);
+            overlay.removeEventListener('click', onOverlayClick);
+            document.removeEventListener('keydown', onKeydown, true);
+        };
+
+        const finish = (value) => { cleanup(); resolve(value); };
+
+        const onOk = (e) => { e.stopPropagation(); finish(true); };
+        const onCancel = (e) => { e.stopPropagation(); finish(false); };
+        const onOverlayClick = (e) => { if (e.target === overlay) finish(false); };
+        const onKeydown = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                finish(false);
+            } else if (e.key === 'Tab') {
+                trapFocusWithin(dialogEl, e);
+            } else if (e.key === 'Enter') {
+                if (document.activeElement === cancelBtn && config.showCancel) {
+                    e.preventDefault();
+                    finish(false);
+                } else if (document.activeElement && document.activeElement.tagName === 'BUTTON') {
+                    // 让原生按钮处理
+                } else {
+                    e.preventDefault();
+                    finish(true);
+                }
+            }
+        };
+
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+        overlay.addEventListener('click', onOverlayClick);
+        document.addEventListener('keydown', onKeydown, true);
+    });
+}
+
+function showAlert(message, options = {}) {
+    return openDialog({
+        title: options.title || '提示',
+        message: message,
+        iconType: options.iconType || 'info',
+        okText: options.okText || '知道了',
+        showCancel: false,
+        danger: false
+    }).then(() => undefined);
+}
+
+function showConfirm(message, options = {}) {
+    return openDialog({
+        title: options.title || '确认操作',
+        message: message,
+        iconType: options.iconType || 'question',
+        okText: options.okText || '确定',
+        cancelText: options.cancelText || '取消',
+        showCancel: true,
+        danger: !!options.danger
+    });
+}
+
+// ============================================================
+// 表单内联错误
+// ============================================================
+function setFieldError(fieldId, message) {
+    const field = document.getElementById(fieldId);
+    if (field) field.classList.add('error');
+    const errEl = document.getElementById(fieldId + '-error');
+    if (errEl) {
+        const span = errEl.querySelector('span');
+        if (span) span.textContent = message;
+        errEl.classList.remove('show');
+        void errEl.offsetWidth;
+        errEl.classList.add('show');
+    }
+}
+
+function clearFieldError(fieldId) {
+    const field = document.getElementById(fieldId);
+    if (field) field.classList.remove('error');
+    const errEl = document.getElementById(fieldId + '-error');
+    if (errEl) errEl.classList.remove('show');
+}
+
+function clearAllFieldErrors(scope) {
+    const root = scope || document;
+    root.querySelectorAll('.form-control.error').forEach(el => el.classList.remove('error'));
+    root.querySelectorAll('.form-error.show').forEach(el => el.classList.remove('show'));
+}
+
+// ============================================================
+// 主题颜色
+// ============================================================
+function getThemeColors() {
+    try {
+        const raw = localStorage.getItem('themeColors');
+        const c = raw ? JSON.parse(raw) : null;
+        if (c && c.primary && c.accent) return c;
+    } catch (e) {}
+    return { ...DEFAULT_THEME_COLORS };
+}
+
+function applyThemeColors(primary, accent) {
+    const root = document.documentElement;
+    const p = normalizeHex(primary) || DEFAULT_THEME_COLORS.primary;
+    const a = normalizeHex(accent) || DEFAULT_THEME_COLORS.accent;
+
+    root.style.setProperty('--accent', p);
+    root.style.setProperty('--accent-2', a);
+
+    const rgb1 = hexToRgb(p);
+    if (rgb1) {
+        root.style.setProperty('--accent-rgb', `${rgb1.r}, ${rgb1.g}, ${rgb1.b}`);
+        root.style.setProperty('--accent-dark', darkenHex(p, 0.15));
+    }
+
+    const rgb2 = hexToRgb(a);
+    if (rgb2) {
+        root.style.setProperty('--accent-2-rgb', `${rgb2.r}, ${rgb2.g}, ${rgb2.b}`);
+    }
+}
+
+function initThemeColors() {
+    const colors = getThemeColors();
+    applyThemeColors(colors.primary, colors.accent);
+}
+
+function updateColorPreview() {
+    const primary = normalizeHex(document.getElementById('primary-color-text').value);
+    const accent = normalizeHex(document.getElementById('accent-color-text').value);
+    const preview = document.querySelector('.color-preview');
+    if (!preview) return;
+    preview.style.setProperty('--preview-accent', primary || DEFAULT_THEME_COLORS.primary);
+    preview.style.setProperty('--preview-accent-2', accent || DEFAULT_THEME_COLORS.accent);
+}
+
+function openThemeColorsModal() {
+    const modal = document.getElementById('theme-colors-modal');
+    const config = getThemeColors();
+
+    clearAllFieldErrors(modal);
+    document.getElementById('primary-color-picker').value = config.primary;
+    document.getElementById('primary-color-text').value = config.primary;
+    document.getElementById('accent-color-picker').value = config.accent;
+    document.getElementById('accent-color-text').value = config.accent;
+
+    updateColorPreview();
+
+    modal.classList.add('show');
+    lockBodyScroll();
+}
+
+function closeThemeColorsModal() {
+    const modal = document.getElementById('theme-colors-modal');
+    if (!modal.classList.contains('show')) return;
+    modal.classList.remove('show');
+    unlockBodyScroll();
+}
+
+function saveThemeColors() {
+    const modal = document.getElementById('theme-colors-modal');
+    clearAllFieldErrors(modal);
+
+    const primaryRaw = document.getElementById('primary-color-text').value.trim();
+    const accentRaw = document.getElementById('accent-color-text').value.trim();
+
+    const primary = normalizeHex(primaryRaw);
+    const accent = normalizeHex(accentRaw);
+
+    let hasError = false;
+    if (!primary) {
+        setFieldError('primary-color-text', '请输入有效的十六进制颜色（例如 #4da6ff）');
+        hasError = true;
+    }
+    if (!accent) {
+        setFieldError('accent-color-text', '请输入有效的十六进制颜色（例如 #80c0ff）');
+        hasError = true;
+    }
+    if (hasError) return;
+
+    localStorage.setItem('themeColors', JSON.stringify({ primary, accent }));
+    applyThemeColors(primary, accent);
+    closeThemeColorsModal();
+}
+
+// ============================================================
 // 全局状态
 // ============================================================
 let currentEditLinkIndex = null;
@@ -132,6 +451,9 @@ let touchState = {
 };
 let suppressNextClick = false;
 
+let linksTipInitialized = false;
+let themeSystemListenerBound = false;
+
 const DEFAULT_EFFECTS = { blur: 0, brightness: 100, saturation: 100, overlay: 0 };
 
 const BG_PRESETS = {
@@ -154,12 +476,13 @@ document.addEventListener('DOMContentLoaded', async function () {
         await initIndexedDB();
     } catch (error) {
         console.error("IndexedDB 初始化失败:", error);
-        alert("浏览器存储初始化失败，部分功能可能不可用");
+        showAlert("浏览器存储初始化失败，部分功能可能不可用", { iconType: 'warning' });
     }
 
     updateDateTime();
     setInterval(updateDateTime, 1000);
 
+    initThemeColors();
     initSearchEngines();
     initQuickLinks();
     initSearchHistory();
@@ -198,8 +521,12 @@ function initLinksTip() {
 
     if (localStorage.getItem('linksTipDismissed') === 'true') {
         tip.classList.add('dismissed');
-        return;
+    } else {
+        tip.classList.remove('dismissed');
     }
+
+    if (linksTipInitialized) return;
+    linksTipInitialized = true;
 
     btn.addEventListener('click', () => {
         tip.classList.add('dismissed');
@@ -320,7 +647,7 @@ function performSearch() {
     }
 
     if (!engine) {
-        alert('未找到搜索引擎配置');
+        showAlert('未找到搜索引擎配置', { iconType: 'error' });
         return;
     }
 
@@ -392,13 +719,10 @@ function renderLinks(links) {
                 e.stopPropagation();
                 return;
             }
-            // 点编辑按钮由委托处理
             if (e.target.closest('.link-edit-btn')) return;
             if (card.classList.contains('dragging')) return;
             if (card.classList.contains('long-press-active')) return;
 
-            // 触屏首次轻触：卡片刚被选中，不打开链接（由 touch 逻辑处理）
-            // 桌面：直接打开链接
             if (card.dataset.tapBlocked === '1') {
                 delete card.dataset.tapBlocked;
                 return;
@@ -406,7 +730,6 @@ function renderLinks(links) {
             window.open(link.url, '_self');
         });
 
-        // 键盘：按 Enter 打开链接
         card.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.target.closest('.link-edit-btn')) {
                 window.open(link.url, '_self');
@@ -441,7 +764,7 @@ async function loadLinkIcon(linkId, card) {
 }
 
 // ============================================================
-// FLIP 动画工具
+// FLIP 动画
 // ============================================================
 function reorderWithFlip(container, selector, doReorder) {
     const items = [...container.querySelectorAll(selector)];
@@ -456,19 +779,15 @@ function reorderWithFlip(container, selector, doReorder) {
         const dx = first.left - last.left;
         const dy = first.top - last.top;
         if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
-
         try {
             el.animate(
                 [
                     { transform: `translate(${dx}px, ${dy}px)` },
                     { transform: 'translate(0, 0)' }
                 ],
-                {
-                    duration: 260,
-                    easing: 'cubic-bezier(0.25, 0.8, 0.25, 1)'
-                }
+                { duration: 260, easing: 'cubic-bezier(0.25, 0.8, 0.25, 1)' }
             );
-        } catch (e) { /* 兼容 */ }
+        } catch (e) { }
     });
 }
 
@@ -610,7 +929,7 @@ function updateEnginesOrder() {
 }
 
 // ============================================================
-// 触屏手势：轻触选中 / 再次轻触打开 / 长按拖拽
+// 触屏手势
 // ============================================================
 function attachTouchHandlers(container, kind) {
     const selector = kind === 'links' ? '.link-card' : '.engine-btn-container';
@@ -619,22 +938,16 @@ function attachTouchHandlers(container, kind) {
     container.addEventListener('touchstart', function (e) {
         const target = e.target.closest(selector);
         if (!target) return;
-
-        // 点编辑按钮交给原生 click 处理
         if (e.target.closest(editBtnSel)) return;
 
-        // 判断是不是"再次轻触已选中的卡片"
         const isAlreadyActive = target.classList.contains('touch-active');
         touchState.shouldOpenOnTap = isAlreadyActive;
 
-        // 清除其他卡片的选中状态
         container.querySelectorAll('.touch-active').forEach(el => {
             if (el !== target) el.classList.remove('touch-active');
         });
-        // 保证当前卡片选中（即使之前已选中也重置，避免误判）
         target.classList.add('touch-active');
 
-        // 首次轻触：阻止后续 click 打开链接（用于链接卡片）
         if (!isAlreadyActive && kind === 'links') {
             target.dataset.tapBlocked = '1';
         } else {
@@ -666,7 +979,6 @@ function attachTouchHandlers(container, kind) {
         const dx = Math.abs(touch.clientX - touchState.startX);
         const dy = Math.abs(touch.clientY - touchState.startY);
 
-        // 长按激活前移动超阈值 → 取消长按，也取消 touch-active（视为滚动）
         if (!touchState.started) {
             if (dx > LONG_PRESS_MOVE_CANCEL || dy > LONG_PRESS_MOVE_CANCEL) {
                 if (touchState.timer) clearTimeout(touchState.timer);
@@ -681,7 +993,6 @@ function attachTouchHandlers(container, kind) {
             return;
         }
 
-        // 长按激活后移动超阈值 → 进入拖拽
         if (!touchState.dragging && (dx > DRAG_START_THRESHOLD || dy > DRAG_START_THRESHOLD)) {
             touchState.dragging = true;
             touchState.card.classList.remove('long-press-active');
@@ -734,14 +1045,11 @@ function attachTouchHandlers(container, kind) {
             suppressNextClick = true;
             setTimeout(() => { suppressNextClick = false; }, 350);
         } else if (wasStarted) {
-            // 长按未移动：保持选中即可（用户点编辑按钮）
             suppressNextClick = true;
             setTimeout(() => { suppressNextClick = false; }, 350);
         } else if (shouldOpenOnTap) {
-            // 再次轻触：允许 click 传递（打开链接）
             suppressNextClick = false;
         } else {
-            // 首次轻触：阻止 click，防止打开链接
             suppressNextClick = true;
             setTimeout(() => { suppressNextClick = false; }, 350);
         }
@@ -822,7 +1130,7 @@ function getDragAfterElement(container, selector, x, y) {
 }
 
 // ============================================================
-// 搜索历史
+// 搜索历史（最多 30 条）
 // ============================================================
 function initSearchHistory() {
     renderSearchHistory(getSearchHistory());
@@ -843,7 +1151,7 @@ function saveSearchHistory(query, engineName) {
     if (existingIndex !== -1) history.splice(existingIndex, 1);
 
     history.unshift({ query, engine: engineName, timestamp: new Date().toISOString() });
-    if (history.length > 10) history.pop();
+    if (history.length > MAX_HISTORY) history.pop();
 
     localStorage.setItem('searchHistory', JSON.stringify(history));
     renderSearchHistory(history);
@@ -928,9 +1236,12 @@ function initTheme() {
     if (followSystem) applyTheme(systemPrefersDark);
     else applyTheme(savedTheme === 'dark');
 
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
-        if (document.getElementById('system-theme-toggle').checked) applyTheme(e.matches);
-    });
+    if (!themeSystemListenerBound) {
+        themeSystemListenerBound = true;
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+            if (document.getElementById('system-theme-toggle').checked) applyTheme(e.matches);
+        });
+    }
 
     setThemeColor();
 }
@@ -1052,6 +1363,7 @@ function openBgModal() {
     document.getElementById('bg-url-input').value = '';
     document.getElementById('bg-image-upload').value = '';
     document.getElementById('bg-upload-hint').style.display = 'none';
+    clearAllFieldErrors(modal);
 
     bgKeepExisting = false;
     currentBgType = config.type === 'db' ? 'upload' : (config.type || 'none');
@@ -1086,13 +1398,14 @@ function openBgModal() {
     updateAllSliderProgress();
 
     modal.classList.add('show');
-    modal.style.display = 'flex';
+    lockBodyScroll();
 }
 
 function closeBgModal() {
     const modal = document.getElementById('bg-modal');
+    if (!modal.classList.contains('show')) return;
     modal.classList.remove('show');
-    modal.style.display = 'none';
+    unlockBodyScroll();
 }
 
 function setSlidersFromEffects(effects) {
@@ -1140,6 +1453,8 @@ function updateBgPreviewFromUrl() {
 }
 
 async function saveBg() {
+    clearAllFieldErrors(document.getElementById('bg-modal'));
+
     if (currentBgType === 'none') {
         try { await deleteIconFromDB(BG_STORE, BG_KEY); } catch (e) {}
         saveBgConfig({ type: 'none', effects: { ...previewEffects } });
@@ -1150,8 +1465,12 @@ async function saveBg() {
 
     if (currentBgType === 'url') {
         const url = document.getElementById('bg-url-input').value.trim();
-        if (!url) { alert('请输入图片链接'); return; }
-        try { new URL(url); } catch { alert('请输入有效的图片URL'); return; }
+        if (!url) { setFieldError('bg-url-input', '请输入图片链接'); return; }
+        try { new URL(url); }
+        catch {
+            setFieldError('bg-url-input', '请输入有效的图片 URL（例如：https://example.com/img.jpg）');
+            return;
+        }
 
         try { await deleteIconFromDB(BG_STORE, BG_KEY); } catch (e) {}
 
@@ -1165,8 +1484,14 @@ async function saveBg() {
         const fileInput = document.getElementById('bg-image-upload');
         if (fileInput.files && fileInput.files[0]) {
             const file = fileInput.files[0];
-            if (!file.type.match('image.*')) { alert('请选择图片文件'); return; }
-            if (file.size > 5 * 1024 * 1024) { alert('图片文件过大，请选择小于 5MB 的图片'); return; }
+            if (!file.type.match('image.*')) {
+                setFieldError('bg-image-upload', '请选择图片文件');
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                setFieldError('bg-image-upload', '图片文件过大，请选择小于 5MB 的图片');
+                return;
+            }
 
             const reader = new FileReader();
             reader.onload = async function (ev) {
@@ -1177,10 +1502,10 @@ async function saveBg() {
                     closeBgModal();
                 } catch (e) {
                     console.error(e);
-                    alert('保存背景图片失败，请重试');
+                    showAlert('保存背景图片失败，请重试', { iconType: 'error' });
                 }
             };
-            reader.onerror = () => alert('读取文件失败');
+            reader.onerror = () => showAlert('读取文件失败', { iconType: 'error' });
             reader.readAsDataURL(file);
             return;
         } else if (bgKeepExisting) {
@@ -1189,7 +1514,7 @@ async function saveBg() {
             closeBgModal();
             return;
         } else {
-            alert('请选择图片文件');
+            setFieldError('bg-image-upload', '请选择图片文件');
             return;
         }
     }
@@ -1201,7 +1526,7 @@ async function saveBg() {
 const CONFIG_KEYS = [
     'searchEngines', 'searchEngine', 'quickLinks', 'searchHistory',
     'theme', 'followSystemTheme', 'blurEnabled', 'bgConfig',
-    'linksTipDismissed'
+    'linksTipDismissed', 'themeColors'
 ];
 
 function getAllFromStore(storeName) {
@@ -1213,9 +1538,7 @@ function getAllFromStore(storeName) {
             const req = store.getAll();
             req.onsuccess = () => resolve(req.result || []);
             req.onerror = (e) => reject(e.target.error);
-        } catch (e) {
-            reject(e);
-        }
+        } catch (e) { reject(e); }
     });
 }
 
@@ -1225,11 +1548,7 @@ async function exportConfig() {
         version: CONFIG_VERSION,
         exportedAt: new Date().toISOString(),
         localStorage: {},
-        indexedDB: {
-            linkIcons: [],
-            engineIcons: [],
-            backgroundImage: []
-        }
+        indexedDB: { linkIcons: [], engineIcons: [], backgroundImage: [] }
     };
 
     CONFIG_KEYS.forEach(key => {
@@ -1241,9 +1560,7 @@ async function exportConfig() {
         data.indexedDB.linkIcons = await getAllFromStore(LINK_ICONS_STORE);
         data.indexedDB.engineIcons = await getAllFromStore(ENGINE_ICONS_STORE);
         data.indexedDB.backgroundImage = await getAllFromStore(BG_STORE);
-    } catch (e) {
-        console.error('导出 IndexedDB 数据失败:', e);
-    }
+    } catch (e) { console.error('导出 IndexedDB 数据失败:', e); }
 
     const json = JSON.stringify(data, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
@@ -1266,14 +1583,11 @@ function clearStore(storeName) {
         if (!db) return resolve();
         try {
             const tx = db.transaction([storeName], 'readwrite');
-            const store = tx.objectStore(storeName);
-            store.clear();
+            tx.objectStore(storeName).clear();
             tx.oncomplete = () => resolve();
             tx.onerror = (e) => reject(e.target.error);
             tx.onabort = (e) => reject(e.target.error);
-        } catch (e) {
-            reject(e);
-        }
+        } catch (e) { reject(e); }
     });
 }
 
@@ -1283,75 +1597,76 @@ function bulkPutToStore(storeName, items) {
         try {
             const tx = db.transaction([storeName], 'readwrite');
             const store = tx.objectStore(storeName);
-            items.forEach(item => {
-                if (item && item.id !== undefined) store.put(item);
-            });
+            items.forEach(item => { if (item && item.id !== undefined) store.put(item); });
             tx.oncomplete = () => resolve();
             tx.onerror = (e) => reject(e.target.error);
             tx.onabort = (e) => reject(e.target.error);
-        } catch (e) {
-            reject(e);
-        }
+        } catch (e) { reject(e); }
     });
 }
 
 async function importConfigFromFile(file) {
     let text;
-    try {
-        text = await file.text();
-    } catch (e) {
-        alert('无法读取文件');
-        return;
-    }
+    try { text = await file.text(); }
+    catch (e) { await showAlert('无法读取文件', { iconType: 'error' }); return; }
 
     let data;
-    try {
-        data = JSON.parse(text);
-    } catch (e) {
-        alert('文件格式错误，无法解析 JSON');
-        return;
-    }
+    try { data = JSON.parse(text); }
+    catch (e) { await showAlert('文件格式错误，无法解析 JSON', { iconType: 'error' }); return; }
 
     if (!data || typeof data !== 'object' || data.app !== 'XunhaiiStartPage') {
-        if (!confirm('该文件可能不是本起始页的配置文件，仍然继续导入吗？')) return;
+        const ok = await showConfirm('该文件可能不是本起始页的配置文件，仍然继续导入吗？', { iconType: 'question' });
+        if (!ok) return;
     }
 
-    if (!confirm('导入将覆盖当前所有配置（包括快捷方式、搜索引擎、背景图等），确定继续吗？')) return;
+    const ok2 = await showConfirm('导入将覆盖当前所有配置（包括快捷方式、搜索引擎、背景图等），确定继续吗？', {
+        iconType: 'warning', title: '确认导入', okText: '继续导入'
+    });
+    if (!ok2) return;
 
+    // 写入 localStorage
     if (data.localStorage && typeof data.localStorage === 'object') {
         CONFIG_KEYS.forEach(key => {
             if (Object.prototype.hasOwnProperty.call(data.localStorage, key)) {
-                if (typeof data.localStorage[key] === 'string') {
-                    localStorage.setItem(key, data.localStorage[key]);
-                }
+                if (typeof data.localStorage[key] === 'string') localStorage.setItem(key, data.localStorage[key]);
             } else {
                 localStorage.removeItem(key);
             }
         });
     }
 
+    // 写入 IndexedDB
     try {
         const stores = [LINK_ICONS_STORE, ENGINE_ICONS_STORE, BG_STORE];
         for (const s of stores) await clearStore(s);
-
         if (data.indexedDB) {
             await bulkPutToStore(LINK_ICONS_STORE, data.indexedDB.linkIcons || []);
             await bulkPutToStore(ENGINE_ICONS_STORE, data.indexedDB.engineIcons || []);
             await bulkPutToStore(BG_STORE, data.indexedDB.backgroundImage || []);
         }
-    } catch (e) {
-        console.error('导入 IndexedDB 失败:', e);
-    }
+    } catch (e) { console.error('导入 IndexedDB 失败:', e); }
 
-    alert('导入成功，页面即将刷新以应用配置。');
-    setTimeout(() => location.reload(), 400);
+    // 重新初始化 UI，不重载页面
+    initThemeColors();
+    initSearchEngines();
+    initQuickLinks();
+    initSearchHistory();
+    initTheme();
+    initBlurToggle();
+    await loadBackground();
+    initLinksTip();
+
+    await showAlert('导入成功！所有配置已生效。', { iconType: 'success', title: '导入成功' });
 }
 
 // ============================================================
 // 重置
 // ============================================================
 async function resetAllSettings() {
-    if (!confirm('确定要重置所有设置吗？这将清除所有自定义设置并恢复默认状态。')) return;
+    const ok = await showConfirm('确定要重置所有设置吗？这将清除所有自定义设置并恢复默认状态。', {
+        iconType: 'warning', title: '重置所有设置', okText: '重置', danger: true
+    });
+    if (!ok) return;
 
     CONFIG_KEYS.forEach(k => localStorage.removeItem(k));
 
@@ -1366,9 +1681,7 @@ async function resetAllSettings() {
             transaction.onerror = (e) => reject(e.target.error);
             transaction.onabort = (e) => reject(e.target.error);
         });
-    } catch (error) {
-        console.error("重置 IndexedDB 失败:", error);
-    }
+    } catch (error) { console.error("重置 IndexedDB 失败:", error); }
 
     document.body.classList.remove('has-custom-bg', 'no-blur');
     const root = document.documentElement;
@@ -1377,7 +1690,13 @@ async function resetAllSettings() {
     root.style.removeProperty('--bg-brightness');
     root.style.removeProperty('--bg-saturation');
     root.style.removeProperty('--bg-overlay');
+    root.style.removeProperty('--accent');
+    root.style.removeProperty('--accent-2');
+    root.style.removeProperty('--accent-dark');
+    root.style.removeProperty('--accent-rgb');
+    root.style.removeProperty('--accent-2-rgb');
 
+    initThemeColors();
     initSearchEngines();
     initQuickLinks();
     initSearchHistory();
@@ -1387,7 +1706,7 @@ async function resetAllSettings() {
     initLinksTip();
 
     document.getElementById('settings-panel').classList.remove('open');
-    alert('所有设置已重置成功！');
+    await showAlert('所有设置已重置成功！', { iconType: 'success', title: '重置成功' });
 }
 
 // ============================================================
@@ -1395,18 +1714,13 @@ async function resetAllSettings() {
 // ============================================================
 function setupEventListeners() {
     document.getElementById('engine-container').addEventListener('click', (e) => {
-        if (suppressNextClick) {
-            e.preventDefault();
-            e.stopPropagation();
-            return;
-        }
+        if (suppressNextClick) { e.preventDefault(); e.stopPropagation(); return; }
         const editBtn = e.target.closest('.engine-edit-btn');
         if (editBtn) { openEngineModal(editBtn.dataset.engine); return; }
         const btn = e.target.closest('.engine-btn');
         if (btn) setActiveEngine(btn.dataset.engine);
     });
 
-    // 链接编辑按钮
     document.getElementById('links-container').addEventListener('click', (e) => {
         if (suppressNextClick) return;
         const editBtn = e.target.closest('.link-edit-btn');
@@ -1414,6 +1728,13 @@ function setupEventListeners() {
             e.stopPropagation();
             e.preventDefault();
             openLinkModal(parseInt(editBtn.dataset.index, 10));
+        }
+    });
+
+    document.addEventListener('input', (e) => {
+        const el = e.target;
+        if (el && el.id && el.classList && el.classList.contains('form-control')) {
+            clearFieldError(el.id);
         }
     });
 
@@ -1429,6 +1750,7 @@ function setupEventListeners() {
     document.getElementById('cancel-link-btn').addEventListener('click', closeLinkModal);
     document.getElementById('close-engine-modal').addEventListener('click', closeEngineModal);
     document.getElementById('cancel-engine-btn').addEventListener('click', closeEngineModal);
+    document.getElementById('close-theme-colors-modal').addEventListener('click', closeThemeColorsModal);
 
     document.getElementById('save-link-btn').addEventListener('click', saveLink);
     document.getElementById('save-engine-btn').addEventListener('click', saveEngine);
@@ -1447,17 +1769,22 @@ function setupEventListeners() {
     document.getElementById('engine-modal').addEventListener('click', (e) => {
         if (e.target.id === 'engine-modal') closeEngineModal();
     });
+    document.getElementById('theme-colors-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'theme-colors-modal') closeThemeColorsModal();
+    });
 
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
+            const dlg = document.getElementById('dialog-overlay');
+            if (dlg && dlg.classList.contains('show')) return;
             closeLinkModal();
             closeEngineModal();
             closeBgModal();
+            closeThemeColorsModal();
             document.getElementById('settings-panel').classList.remove('open');
         }
     });
 
-    // 点击空白处取消所有 touch-active 状态
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.link-card') && !e.target.closest('.engine-btn-container')) {
             document.querySelectorAll('.touch-active').forEach(el => {
@@ -1476,8 +1803,11 @@ function setupEventListeners() {
         document.body.classList.toggle('no-blur', !enabled);
     });
 
-    document.getElementById('clear-history').addEventListener('click', () => {
-        if (confirm('确定要清空所有搜索历史吗？')) clearSearchHistory();
+    document.getElementById('clear-history').addEventListener('click', async () => {
+        const ok = await showConfirm('确定要清空所有搜索历史吗？', {
+            iconType: 'warning', title: '清空搜索历史', okText: '清空', danger: true
+        });
+        if (ok) clearSearchHistory();
     });
 
     document.getElementById('export-config-btn').addEventListener('click', exportConfig);
@@ -1491,12 +1821,71 @@ function setupEventListeners() {
         await importConfigFromFile(file);
     });
 
-    // 链接图标
+    // ===== 主题颜色 =====
+    document.getElementById('theme-colors-btn').addEventListener('click', () => {
+        document.getElementById('settings-panel').classList.remove('open');
+        openThemeColorsModal();
+    });
+
+    document.getElementById('primary-color-picker').addEventListener('input', (e) => {
+        const val = e.target.value;
+        document.getElementById('primary-color-text').value = val;
+        clearFieldError('primary-color-text');
+        updateColorPreview();
+    });
+    document.getElementById('primary-color-text').addEventListener('input', (e) => {
+        const val = e.target.value.trim();
+        const norm = normalizeHex(val);
+        if (norm) {
+            document.getElementById('primary-color-picker').value = norm;
+        }
+        updateColorPreview();
+    });
+    document.getElementById('accent-color-picker').addEventListener('input', (e) => {
+        const val = e.target.value;
+        document.getElementById('accent-color-text').value = val;
+        clearFieldError('accent-color-text');
+        updateColorPreview();
+    });
+    document.getElementById('accent-color-text').addEventListener('input', (e) => {
+        const val = e.target.value.trim();
+        const norm = normalizeHex(val);
+        if (norm) {
+            document.getElementById('accent-color-picker').value = norm;
+        }
+        updateColorPreview();
+    });
+
+    document.getElementById('save-theme-colors-btn').addEventListener('click', saveThemeColors);
+    document.getElementById('reset-theme-colors-btn').addEventListener('click', () => {
+        document.getElementById('primary-color-picker').value = DEFAULT_THEME_COLORS.primary;
+        document.getElementById('primary-color-text').value = DEFAULT_THEME_COLORS.primary;
+        document.getElementById('accent-color-picker').value = DEFAULT_THEME_COLORS.accent;
+        document.getElementById('accent-color-text').value = DEFAULT_THEME_COLORS.accent;
+        clearAllFieldErrors(document.getElementById('theme-colors-modal'));
+        updateColorPreview();
+    });
+
+    document.querySelectorAll('.color-preset').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const p = btn.dataset.primary;
+            const a = btn.dataset.accent;
+            document.getElementById('primary-color-picker').value = p;
+            document.getElementById('primary-color-text').value = p;
+            document.getElementById('accent-color-picker').value = a;
+            document.getElementById('accent-color-text').value = a;
+            clearAllFieldErrors(document.getElementById('theme-colors-modal'));
+            updateColorPreview();
+        });
+    });
+
+    // ===== 链接图标 =====
     document.querySelectorAll('#link-modal .icon-option').forEach(option => {
         option.addEventListener('click', () => {
             document.querySelectorAll('#link-modal .icon-option').forEach(o => o.classList.remove('active'));
             option.classList.add('active');
             document.querySelectorAll('#link-modal .icon-selector').forEach(el => el.style.display = 'none');
+            clearAllFieldErrors(document.getElementById('link-modal'));
 
             const type = option.dataset.type;
             if (type === 'fa') {
@@ -1522,12 +1911,13 @@ function setupEventListeners() {
     document.getElementById('link-icon-url').addEventListener('input', updateLinkIconPreview);
     document.getElementById('link-icon-upload').addEventListener('change', handleLinkIconUpload);
 
-    // 引擎图标
+    // ===== 引擎图标 =====
     document.querySelectorAll('#engine-modal .icon-option').forEach(option => {
         option.addEventListener('click', () => {
             document.querySelectorAll('#engine-modal .icon-option').forEach(o => o.classList.remove('active'));
             option.classList.add('active');
             document.querySelectorAll('#engine-modal .icon-selector').forEach(el => el.style.display = 'none');
+            clearAllFieldErrors(document.getElementById('engine-modal'));
 
             const type = option.dataset.type;
             if (type === 'fa') {
@@ -1553,7 +1943,7 @@ function setupEventListeners() {
     document.getElementById('engine-icon-url').addEventListener('input', updateEngineIconPreview);
     document.getElementById('engine-icon-upload').addEventListener('change', handleEngineIconUpload);
 
-    // 背景
+    // ===== 背景 =====
     document.getElementById('bg-settings-btn').addEventListener('click', () => {
         document.getElementById('settings-panel').classList.remove('open');
         openBgModal();
@@ -1570,6 +1960,7 @@ function setupEventListeners() {
             document.querySelectorAll('#bg-modal .icon-option').forEach(o => o.classList.remove('active'));
             option.classList.add('active');
             document.querySelectorAll('#bg-modal .icon-selector').forEach(el => el.style.display = 'none');
+            clearAllFieldErrors(document.getElementById('bg-modal'));
 
             const type = option.dataset.bgType;
             const previewImage = document.getElementById('bg-preview-image');
@@ -1605,10 +1996,11 @@ function setupEventListeners() {
     document.getElementById('bg-url-input').addEventListener('input', updateBgPreviewFromUrl);
 
     document.getElementById('bg-image-upload').addEventListener('change', (e) => {
+        clearFieldError('bg-image-upload');
         const file = e.target.files[0];
         if (!file) return;
         if (!file.type.match('image.*')) {
-            alert('请选择图片文件');
+            setFieldError('bg-image-upload', '请选择图片文件');
             e.target.value = '';
             return;
         }
@@ -1686,6 +2078,7 @@ function openLinkModal(index = null) {
     document.getElementById('link-fa-option').classList.add('active');
     document.querySelectorAll('#link-modal .icon-selector').forEach(el => el.style.display = 'none');
     document.getElementById('link-fa-container').style.display = 'block';
+    clearAllFieldErrors(modal);
     currentLinkIconType = 'fa';
     currentLinkKeepExistingIcon = false;
     currentEditLinkId = null;
@@ -1698,7 +2091,7 @@ function openLinkModal(index = null) {
     if (index !== null && index >= 0) {
         const links = getSavedLinks();
         const link = links[index];
-        if (!link) { alert('未找到该快捷方式'); return; }
+        if (!link) { showAlert('未找到该快捷方式', { iconType: 'error' }); return; }
 
         title.textContent = '编辑快捷方式';
         nameInput.value = link.name;
@@ -1738,7 +2131,7 @@ function openLinkModal(index = null) {
     }
 
     modal.classList.add('show');
-    modal.style.display = 'flex';
+    lockBodyScroll();
     setTimeout(() => nameInput.focus(), 50);
 }
 
@@ -1757,10 +2150,19 @@ function updateLinkIconPreview() {
 }
 
 function handleLinkIconUpload(e) {
+    clearFieldError('link-icon-upload');
     const file = e.target.files[0];
     if (!file) return;
-    if (!file.type.match('image.*')) { alert('请选择图片文件'); e.target.value = ''; return; }
-    if (file.size > 500 * 1024) { alert('图标文件过大，请选择小于 500KB 的图片'); e.target.value = ''; return; }
+    if (!file.type.match('image.*')) {
+        setFieldError('link-icon-upload', '请选择图片文件');
+        e.target.value = '';
+        return;
+    }
+    if (file.size > 500 * 1024) {
+        setFieldError('link-icon-upload', '图标文件过大，请选择小于 500KB 的图片');
+        e.target.value = '';
+        return;
+    }
 
     const reader = new FileReader();
     reader.onload = function (ev) {
@@ -1772,20 +2174,30 @@ function handleLinkIconUpload(e) {
 
 function closeLinkModal() {
     const modal = document.getElementById('link-modal');
+    if (!modal.classList.contains('show')) return;
     modal.classList.remove('show');
-    modal.style.display = 'none';
+    unlockBodyScroll();
 }
 
 async function saveLink() {
+    const modal = document.getElementById('link-modal');
+    clearAllFieldErrors(modal);
+
     const name = document.getElementById('link-name').value.trim();
     const url = document.getElementById('link-url').value.trim();
 
-    if (!name || !url) { alert('请填写名称和网址'); return; }
+    let hasError = false;
+    if (!name) { setFieldError('link-name', '请输入名称'); hasError = true; }
+    if (!url) { setFieldError('link-url', '请输入网址'); hasError = true; }
+    if (hasError) return;
 
     let normalizedUrl = url;
     if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url)) normalizedUrl = 'https://' + url;
     try { new URL(normalizedUrl); }
-    catch (e) { alert('请输入有效的网址（例如：https://example.com）'); return; }
+    catch (e) {
+        setFieldError('link-url', '请输入有效的网址（例如：https://example.com）');
+        return;
+    }
 
     let iconType = currentLinkIconType;
     let iconValue = '';
@@ -1798,24 +2210,33 @@ async function saveLink() {
             reader.onload = async function () {
                 await completeSaveLink(name, normalizedUrl, reader.result, 'db', currentEditLinkId, false);
             };
-            reader.onerror = () => alert('读取文件失败，请重试');
+            reader.onerror = () => showAlert('读取文件失败，请重试', { iconType: 'error' });
             reader.readAsDataURL(file);
             return;
         } else if (currentLinkKeepExistingIcon && currentEditLinkId) {
             await completeSaveLink(name, normalizedUrl, '', 'db', currentEditLinkId, true);
             return;
         } else {
-            alert('请选择要上传的图标');
+            setFieldError('link-icon-upload', '请选择要上传的图标文件');
             return;
         }
     } else if (iconType === 'fa') {
         iconValue = sanitizeFaClass(document.getElementById('link-fa-icon').value);
-        if (!iconValue) { alert('请输入有效的 Font Awesome 图标类名'); return; }
+        if (!iconValue) {
+            setFieldError('link-fa-icon', '请输入有效的 Font Awesome 图标类名');
+            return;
+        }
     } else if (iconType === 'url') {
         iconValue = document.getElementById('link-icon-url').value.trim();
-        if (!iconValue) { alert('请输入图标URL'); return; }
+        if (!iconValue) {
+            setFieldError('link-icon-url', '请输入图标 URL');
+            return;
+        }
         try { new URL(iconValue); }
-        catch (e) { alert('请输入有效的图标URL'); return; }
+        catch (e) {
+            setFieldError('link-icon-url', '请输入有效的图标 URL');
+            return;
+        }
     }
 
     await completeSaveLink(name, normalizedUrl, iconValue, iconType, currentEditLinkId, false);
@@ -1839,7 +2260,7 @@ async function completeSaveLink(name, url, iconValue, iconType, id, keepExisting
             try { await saveIconToDB(LINK_ICONS_STORE, finalId, iconValue); }
             catch (error) {
                 console.error("保存链接图标失败:", error);
-                alert("保存图标时出错，请重试");
+                showAlert("保存图标时出错，请重试", { iconType: 'error' });
                 return;
             }
         }
@@ -1860,7 +2281,10 @@ async function completeSaveLink(name, url, iconValue, iconType, id, keepExisting
 }
 
 async function deleteLink(index) {
-    if (!confirm('确定要删除这个快捷方式吗？')) return false;
+    const ok = await showConfirm('确定要删除这个快捷方式吗？', {
+        iconType: 'warning', title: '删除快捷方式', okText: '删除', danger: true
+    });
+    if (!ok) return false;
 
     const links = getSavedLinks();
     const link = links[index];
@@ -1895,6 +2319,7 @@ function openEngineModal(engineId = null) {
     document.getElementById('engine-fa-option').classList.add('active');
     document.querySelectorAll('#engine-modal .icon-selector').forEach(el => el.style.display = 'none');
     document.getElementById('engine-fa-container').style.display = 'block';
+    clearAllFieldErrors(modal);
     currentEngineIconType = 'fa';
     currentEngineKeepExistingIcon = false;
     faInput.value = '';
@@ -1905,7 +2330,7 @@ function openEngineModal(engineId = null) {
     if (engineId) {
         const engines = getSavedEngines();
         const engine = engines.find(e => e.id === engineId);
-        if (!engine) { alert('未找到该搜索引擎'); return; }
+        if (!engine) { showAlert('未找到该搜索引擎', { iconType: 'error' }); return; }
 
         title.textContent = '编辑搜索引擎';
         nameInput.value = engine.name;
@@ -1943,7 +2368,7 @@ function openEngineModal(engineId = null) {
     }
 
     modal.classList.add('show');
-    modal.style.display = 'flex';
+    lockBodyScroll();
     setTimeout(() => nameInput.focus(), 50);
 }
 
@@ -1962,10 +2387,19 @@ function updateEngineIconPreview() {
 }
 
 function handleEngineIconUpload(e) {
+    clearFieldError('engine-icon-upload');
     const file = e.target.files[0];
     if (!file) return;
-    if (!file.type.match('image.*')) { alert('请选择图片文件'); e.target.value = ''; return; }
-    if (file.size > 500 * 1024) { alert('图标文件过大，请选择小于 500KB 的图片'); e.target.value = ''; return; }
+    if (!file.type.match('image.*')) {
+        setFieldError('engine-icon-upload', '请选择图片文件');
+        e.target.value = '';
+        return;
+    }
+    if (file.size > 500 * 1024) {
+        setFieldError('engine-icon-upload', '图标文件过大，请选择小于 500KB 的图片');
+        e.target.value = '';
+        return;
+    }
 
     const reader = new FileReader();
     reader.onload = function (ev) {
@@ -1977,16 +2411,27 @@ function handleEngineIconUpload(e) {
 
 function closeEngineModal() {
     const modal = document.getElementById('engine-modal');
+    if (!modal.classList.contains('show')) return;
     modal.classList.remove('show');
-    modal.style.display = 'none';
+    unlockBodyScroll();
 }
 
 async function saveEngine() {
+    const modal = document.getElementById('engine-modal');
+    clearAllFieldErrors(modal);
+
     const name = document.getElementById('engine-name').value.trim();
     const url = document.getElementById('engine-url').value.trim();
 
-    if (!name || !url) { alert('请填写名称和搜索URL'); return; }
-    if (!url.includes('{query}')) { alert('搜索URL中必须包含{query}占位符'); return; }
+    let hasError = false;
+    if (!name) { setFieldError('engine-name', '请输入名称'); hasError = true; }
+    if (!url) { setFieldError('engine-url', '请输入搜索 URL'); hasError = true; }
+    if (hasError) return;
+
+    if (!url.includes('{query}')) {
+        setFieldError('engine-url', '搜索 URL 中必须包含 {query} 占位符');
+        return;
+    }
 
     let iconType = currentEngineIconType;
     let iconValue = '';
@@ -1999,24 +2444,33 @@ async function saveEngine() {
             reader.onload = async function () {
                 await completeSaveEngine(name, url, reader.result, 'db', false);
             };
-            reader.onerror = () => alert('读取文件失败，请重试');
+            reader.onerror = () => showAlert('读取文件失败，请重试', { iconType: 'error' });
             reader.readAsDataURL(file);
             return;
         } else if (currentEngineKeepExistingIcon && currentEditEngine) {
             await completeSaveEngine(name, url, '', 'db', true);
             return;
         } else {
-            alert('请选择要上传的图标');
+            setFieldError('engine-icon-upload', '请选择要上传的图标文件');
             return;
         }
     } else if (iconType === 'fa') {
         iconValue = sanitizeFaClass(document.getElementById('engine-fa-icon').value);
-        if (!iconValue) { alert('请输入有效的 Font Awesome 图标类名'); return; }
+        if (!iconValue) {
+            setFieldError('engine-fa-icon', '请输入有效的 Font Awesome 图标类名');
+            return;
+        }
     } else if (iconType === 'url') {
         iconValue = document.getElementById('engine-icon-url').value.trim();
-        if (!iconValue) { alert('请输入图标URL'); return; }
+        if (!iconValue) {
+            setFieldError('engine-icon-url', '请输入图标 URL');
+            return;
+        }
         try { new URL(iconValue); }
-        catch (e) { alert('请输入有效的图标URL'); return; }
+        catch (e) {
+            setFieldError('engine-icon-url', '请输入有效的图标 URL');
+            return;
+        }
     }
 
     await completeSaveEngine(name, url, iconValue, iconType, false);
@@ -2031,7 +2485,7 @@ async function completeSaveEngine(name, url, iconValue, iconType, keepExistingIc
             try { await saveIconToDB(ENGINE_ICONS_STORE, engineId, iconValue); }
             catch (error) {
                 console.error("保存搜索引擎图标失败:", error);
-                alert("保存图标时出错，请重试");
+                showAlert("保存图标时出错，请重试", { iconType: 'error' });
                 return;
             }
         }
@@ -2063,7 +2517,11 @@ async function completeSaveEngine(name, url, iconValue, iconType, keepExistingIc
 
 async function deleteEngine() {
     if (!currentEditEngine || currentEditEngine.isDefault) return;
-    if (!confirm(`确定要删除搜索引擎 "${currentEditEngine.name}" 吗？`)) return;
+
+    const ok = await showConfirm(`确定要删除搜索引擎 "${currentEditEngine.name}" 吗？`, {
+        iconType: 'warning', title: '删除搜索引擎', okText: '删除', danger: true
+    });
+    if (!ok) return;
 
     const engines = getSavedEngines();
     const index = engines.findIndex(e => e.id === currentEditEngine.id);

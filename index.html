@@ -8,37 +8,59 @@
     <meta name="keywords" content="Xunhaii起始页,浏览器起始页,个性化主页,快速搜索,书签管理,历史记录">
     <link rel="shortcut icon" type="image/x-icon" href="https://static.xunhaii.com/favicon.ico">
     <meta name="author" content="Xunhaii">
-    <meta property="og:title" content="Xunhaii起始页">
-    <meta property="og:description" content="简约的浏览器起始页，提供自定义快捷链接、自定义搜索引擎、主题切换、历史记录等功能">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://start.xunhaii.com">
-    <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="Xunhaii起始页">
-    <meta name="twitter:description" content="简约的浏览器起始页">
     <meta name="theme-color" id="theme-color" content="#f5f7fa">
     <link rel="stylesheet" href="https://static.xunhaii.com/lib/font-awesome-v7/css/all.min.css">
     <link rel="stylesheet" href="/css/main.css">
     <script>
         (function () {
             try {
-                var raw = localStorage.getItem('bgConfig');
-                if (!raw) return;
-                var cfg = JSON.parse(raw) || {};
-                var e = cfg.effects || {};
                 var root = document.documentElement;
-                if (typeof e.blur === 'number') root.style.setProperty('--bg-blur', e.blur + 'px');
-                if (typeof e.brightness === 'number') root.style.setProperty('--bg-brightness', e.brightness + '%');
-                if (typeof e.saturation === 'number') root.style.setProperty('--bg-saturation', e.saturation + '%');
-                if (typeof e.overlay === 'number') root.style.setProperty('--bg-overlay', (e.overlay / 100).toString());
-                if (cfg.type === 'url' && cfg.value) {
-                    var url = String(cfg.value)
-                        .replace(/\\/g, '\\\\')
-                        .replace(/"/g, '\\"')
-                        .replace(/\n/g, '\\n')
-                        .replace(/\r/g, '\\r');
-                    root.style.setProperty('--bg-image', 'url("' + url + '")');
+                var raw = localStorage.getItem('bgConfig');
+                if (raw) {
+                    var cfg = JSON.parse(raw) || {};
+                    var e = cfg.effects || {};
+                    if (typeof e.blur === 'number') root.style.setProperty('--bg-blur', e.blur + 'px');
+                    if (typeof e.brightness === 'number') root.style.setProperty('--bg-brightness', e.brightness + '%');
+                    if (typeof e.saturation === 'number') root.style.setProperty('--bg-saturation', e.saturation + '%');
+                    if (typeof e.overlay === 'number') root.style.setProperty('--bg-overlay', (e.overlay / 100).toString());
+                    if (cfg.type === 'url' && cfg.value) {
+                        var url = String(cfg.value)
+                            .replace(/\\/g, '\\\\')
+                            .replace(/"/g, '\\"')
+                            .replace(/\n/g, '\\n')
+                            .replace(/\r/g, '\\r');
+                        root.style.setProperty('--bg-image', 'url("' + url + '")');
+                    }
                 }
-            } catch (err) { /* 忽略 */ }
+                var tRaw = localStorage.getItem('themeColors');
+                if (tRaw) {
+                    var t = JSON.parse(tRaw) || {};
+                    if (t.primary) {
+                        var phex = String(t.primary).replace('#', '');
+                        if (phex.length === 6) {
+                            root.style.setProperty('--accent', '#' + phex);
+                            var r = parseInt(phex.slice(0, 2), 16);
+                            var g = parseInt(phex.slice(2, 4), 16);
+                            var b = parseInt(phex.slice(4, 6), 16);
+                            root.style.setProperty('--accent-rgb', r + ', ' + g + ', ' + b);
+                            var dr = Math.max(0, Math.round(r * 0.85));
+                            var dg = Math.max(0, Math.round(g * 0.85));
+                            var db = Math.max(0, Math.round(b * 0.85));
+                            root.style.setProperty('--accent-dark', 'rgb(' + dr + ', ' + dg + ', ' + db + ')');
+                        }
+                    }
+                    if (t.accent) {
+                        var ahex = String(t.accent).replace('#', '');
+                        if (ahex.length === 6) {
+                            root.style.setProperty('--accent-2', '#' + ahex);
+                            var r2 = parseInt(ahex.slice(0, 2), 16);
+                            var g2 = parseInt(ahex.slice(2, 4), 16);
+                            var b2 = parseInt(ahex.slice(4, 6), 16);
+                            root.style.setProperty('--accent-2-rgb', r2 + ', ' + g2 + ', ' + b2);
+                        }
+                    }
+                }
+            } catch (err) { }
         })();
     </script>
 </head>
@@ -58,8 +80,7 @@
                 </button>
             </div>
         </header>
-        
-        <!-- 设置面板 -->
+
         <div class="settings-panel" id="settings-panel">
             <div class="settings-item">
                 <span class="settings-label">跟随系统主题</span>
@@ -74,6 +95,13 @@
                     <input type="checkbox" id="blur-toggle" checked>
                     <span class="slider"></span>
                 </label>
+            </div>
+            <div class="settings-item">
+                <span class="settings-label">主题颜色</span>
+                <button class="settings-sub-btn" id="theme-colors-btn" type="button">
+                    <i class="fas fa-palette"></i>
+                    <span>设置</span>
+                </button>
             </div>
             <div class="settings-item">
                 <span class="settings-label">自定义背景</span>
@@ -137,7 +165,6 @@
                 </div>
                 <div class="links-grid" id="links-container"></div>
 
-                <!-- 提示卡片（可关闭） -->
                 <div class="links-tip-card" id="links-tip-card">
                     <div class="links-tip-icon">
                         <i class="fas fa-lightbulb"></i>
@@ -174,8 +201,7 @@
                 </div>
             </div>
         </div>
-        
-        <!-- 版权信息 -->
+
         <div class="footer">
             © 2026 Xunhaii. | All rights reserved.
             <br>
@@ -189,7 +215,22 @@
         </div>
     </div>
 
-    <!-- 添加快捷方式模态框 -->
+    <div class="dialog-overlay" id="dialog-overlay" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+        <div class="dialog">
+            <div class="dialog-header">
+                <span class="dialog-icon" id="dialog-icon"><i class="fas fa-info-circle"></i></span>
+                <h3 class="dialog-title" id="dialog-title">提示</h3>
+            </div>
+            <div class="dialog-body">
+                <p class="dialog-message" id="dialog-message"></p>
+            </div>
+            <div class="dialog-footer">
+                <button class="btn btn-outline" id="dialog-cancel" type="button">取消</button>
+                <button class="btn btn-primary" id="dialog-ok" type="button">确定</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal" id="link-modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -200,10 +241,12 @@
                 <div class="form-group">
                     <label for="link-name">名称</label>
                     <input type="text" id="link-name" class="form-control" placeholder="例如：Xunhaii">
+                    <div class="form-error" id="link-name-error"><i class="fas fa-exclamation-circle"></i><span></span></div>
                 </div>
                 <div class="form-group">
                     <label for="link-url">网址</label>
                     <input type="text" id="link-url" class="form-control" placeholder="例如：https://www.xunhaii.com">
+                    <div class="form-error" id="link-url-error"><i class="fas fa-exclamation-circle"></i><span></span></div>
                 </div>
                 <div class="form-group">
                     <label>图标设置</label>
@@ -226,9 +269,11 @@
                     </div>
                     <div id="link-fa-container" class="icon-selector">
                         <input type="text" id="link-fa-icon" class="form-control" placeholder="输入Font Awesome图标类名 (如: fab fa-x)">
+                        <div class="form-error" id="link-fa-icon-error"><i class="fas fa-exclamation-circle"></i><span></span></div>
                     </div>
                     <div id="link-url-container" class="icon-selector" style="display:none">
                         <input type="text" id="link-icon-url" class="form-control" placeholder="输入图标图片URL">
+                        <div class="form-error" id="link-icon-url-error"><i class="fas fa-exclamation-circle"></i><span></span></div>
                     </div>
                     <div id="link-upload-container" class="icon-selector" style="display:none">
                         <div class="custom-upload">
@@ -238,7 +283,8 @@
                             </div>
                             <input type="file" id="link-icon-upload" accept="image/*">
                         </div>
-                        <small class="hint" id="link-upload-hint" style="display:none; margin-top:6px; display:block; opacity:0.7; font-size:11px;">
+                        <div class="form-error" id="link-icon-upload-error"><i class="fas fa-exclamation-circle"></i><span></span></div>
+                        <small class="hint" id="link-upload-hint" style="display:none;">
                             <i class="fas fa-info-circle"></i> 已存在上传的图标，不选择新文件则保留原图标
                         </small>
                     </div>
@@ -252,7 +298,6 @@
         </div>
     </div>
 
-    <!-- 添加/编辑搜索引擎模态框 -->
     <div class="modal" id="engine-modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -263,10 +308,12 @@
                 <div class="form-group">
                     <label for="engine-name">名称</label>
                     <input type="text" id="engine-name" class="form-control" placeholder="例如：DuckDuckGo">
+                    <div class="form-error" id="engine-name-error"><i class="fas fa-exclamation-circle"></i><span></span></div>
                 </div>
                 <div class="form-group">
                     <label for="engine-url">搜索URL</label>
                     <input type="text" id="engine-url" class="form-control" placeholder="例如：https://duckduckgo.com/?q={query}">
+                    <div class="form-error" id="engine-url-error"><i class="fas fa-exclamation-circle"></i><span></span></div>
                     <small class="hint">使用{query}作为搜索查询占位符</small>
                 </div>
                 <div class="form-group">
@@ -290,9 +337,11 @@
                     </div>
                     <div id="engine-fa-container" class="icon-selector">
                         <input type="text" id="engine-fa-icon" class="form-control" placeholder="输入Font Awesome图标类名 (如: fas fa-search)">
+                        <div class="form-error" id="engine-fa-icon-error"><i class="fas fa-exclamation-circle"></i><span></span></div>
                     </div>
                     <div id="engine-url-container" class="icon-selector" style="display:none">
                         <input type="text" id="engine-icon-url" class="form-control" placeholder="输入图标图片URL">
+                        <div class="form-error" id="engine-icon-url-error"><i class="fas fa-exclamation-circle"></i><span></span></div>
                     </div>
                     <div id="engine-upload-container" class="icon-selector" style="display:none">
                         <div class="custom-upload">
@@ -302,7 +351,8 @@
                             </div>
                             <input type="file" id="engine-icon-upload" accept="image/*">
                         </div>
-                        <small class="hint" id="engine-upload-hint" style="display:none; margin-top:6px; display:block; opacity:0.7; font-size:11px;">
+                        <div class="form-error" id="engine-icon-upload-error"><i class="fas fa-exclamation-circle"></i><span></span></div>
+                        <small class="hint" id="engine-upload-hint" style="display:none;">
                             <i class="fas fa-info-circle"></i> 已存在上传的图标，不选择新文件则保留原图标
                         </small>
                     </div>
@@ -316,7 +366,6 @@
         </div>
     </div>
 
-    <!-- 自定义背景模态框 -->
     <div class="modal" id="bg-modal">
         <div class="modal-content bg-modal-content">
             <div class="modal-header">
@@ -345,6 +394,7 @@
                     <div class="form-group">
                         <label for="bg-url-input">图片URL</label>
                         <input type="text" id="bg-url-input" class="form-control" placeholder="https://example.com/image.jpg">
+                        <div class="form-error" id="bg-url-input-error"><i class="fas fa-exclamation-circle"></i><span></span></div>
                     </div>
                 </div>
                 <div id="bg-upload-container" class="icon-selector" style="display:none">
@@ -357,7 +407,8 @@
                             </div>
                             <input type="file" id="bg-image-upload" accept="image/*">
                         </div>
-                        <small class="hint" id="bg-upload-hint" style="display:none; margin-top:6px; display:block; opacity:0.7; font-size:11px;">
+                        <div class="form-error" id="bg-image-upload-error"><i class="fas fa-exclamation-circle"></i><span></span></div>
+                        <small class="hint" id="bg-upload-hint" style="display:none;">
                             <i class="fas fa-info-circle"></i> 已存在自定义背景，不选择新文件则保留原背景
                         </small>
                     </div>
@@ -412,6 +463,56 @@
             <div class="modal-footer">
                 <button class="btn btn-outline" id="cancel-bg-btn">取消</button>
                 <button class="btn btn-primary" id="save-bg-btn">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="theme-colors-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">主题颜色</h3>
+                <button class="close-btn" id="close-theme-colors-modal" aria-label="关闭">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="primary-color-text">主色</label>
+                    <div class="color-input-row">
+                        <input type="color" id="primary-color-picker" value="#4da6ff">
+                        <input type="text" id="primary-color-text" class="form-control" value="#4da6ff" maxlength="7" spellcheck="false" autocomplete="off">
+                    </div>
+                    <div class="form-error" id="primary-color-text-error"><i class="fas fa-exclamation-circle"></i><span></span></div>
+                </div>
+                <div class="form-group">
+                    <label for="accent-color-text">衬托色</label>
+                    <div class="color-input-row">
+                        <input type="color" id="accent-color-picker" value="#80c0ff">
+                        <input type="text" id="accent-color-text" class="form-control" value="#80c0ff" maxlength="7" spellcheck="false" autocomplete="off">
+                    </div>
+                    <div class="form-error" id="accent-color-text-error"><i class="fas fa-exclamation-circle"></i><span></span></div>
+                </div>
+                <div class="form-group">
+                    <label>预览</label>
+                    <div class="color-preview">
+                        <button class="btn btn-primary" type="button" tabindex="-1">主按钮</button>
+                        <button class="btn btn-outline" type="button" tabindex="-1">次按钮</button>
+                        <div class="color-preview-gradient"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>快速预设</label>
+                    <div class="color-presets">
+                        <button class="color-preset" data-primary="#4da6ff" data-accent="#80c0ff" type="button" title="天空蓝" style="background: linear-gradient(135deg, #4da6ff, #80c0ff);"></button>
+                        <button class="color-preset" data-primary="#10b981" data-accent="#34d399" type="button" title="薄荷绿" style="background: linear-gradient(135deg, #10b981, #34d399);"></button>
+                        <button class="color-preset" data-primary="#8b5cf6" data-accent="#a78bfa" type="button" title="紫罗兰" style="background: linear-gradient(135deg, #8b5cf6, #a78bfa);"></button>
+                        <button class="color-preset" data-primary="#f59e0b" data-accent="#fbbf24" type="button" title="琥珀橙" style="background: linear-gradient(135deg, #f59e0b, #fbbf24);"></button>
+                        <button class="color-preset" data-primary="#ef4444" data-accent="#f87171" type="button" title="珊瑚红" style="background: linear-gradient(135deg, #ef4444, #f87171);"></button>
+                        <button class="color-preset" data-primary="#ec4899" data-accent="#f472b6" type="button" title="樱花粉" style="background: linear-gradient(135deg, #ec4899, #f472b6);"></button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" id="reset-theme-colors-btn" type="button">恢复默认</button>
+                <button class="btn btn-primary" id="save-theme-colors-btn" type="button">保存</button>
             </div>
         </div>
     </div>
